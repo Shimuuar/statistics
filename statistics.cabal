@@ -154,6 +154,7 @@ library
   exposed-modules:
     Statistics.Autocorrelation
     Statistics.Constants
+    Statistics.Classes
     Statistics.Distribution
     Statistics.Distribution.Beta
     Statistics.Distribution.Binomial
