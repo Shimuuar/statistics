@@ -10,6 +10,8 @@ module Statistics.Classes (
   , SingletonStat(..)
   , NullStatistic(..)
   , SemigoupStat(..)
+    -- * Data types
+  , Mean
   ) where
 
 import Data.List
@@ -58,3 +60,30 @@ class NullStatistic m where
 -- | Statistic accumulators which admit efficient join.
 class SemigoupStat m where
   joinSample :: m -> m -> m
+
+
+
+----------------------------------------------------------------
+
+data Mean = Mean Double Int
+            deriving (Eq,Show)
+
+instance FoldStatistic Mean Double where
+  pappend (Mean m n) x = Mean m' n'
+    where
+      m' = m + (x - m) / fromIntegral n'
+      n' = n + 1
+
+instance SingletonStat Mean Double where
+  singletonStat x = Mean x 1
+
+instance NullStatistic Mean where
+  emptySample = Mean 0 0
+
+instance SemigoupStat Mean where
+   joinSample !(Mean x n) !(Mean y k) =
+     Mean ((x*n' + y*k') / (n' + k')) (n + k)
+     where
+       n' = fromIntegral n
+       k' = fromIntegral k
+   {-# INLINE joinSample #-}
