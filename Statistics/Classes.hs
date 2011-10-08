@@ -22,16 +22,15 @@ import Data.List
 
 -- | Type class for samples.
 class Sample a where
+  -- | Element type of a sample
   type Elem a :: *
   -- | Strict left fold over sample
   foldSample    :: (acc -> Elem a -> acc) -> acc -> a -> acc
-  -- | Fold combined with map
-  mapFoldSample :: (Elem a -> b) -> (acc -> b -> acc) -> acc -> a -> acc
 
 instance Sample [a] where
   type Elem [a] = a
-  foldSample            = foldl'
-  mapFoldSample f acc x = foldl' acc x . map f
+  foldSample    = foldl'
+  {-# INLINE foldSample #-}
 
 ----------------------------------------------------------------
 -- Accumulators
