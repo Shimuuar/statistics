@@ -45,19 +45,21 @@ instance Sample [a] where
 
 
 -- | Type class for statistics which could be expresed by fold.
-class FoldStatistic m a where
-  pappend :: m -> a -> m
+class FoldStatistic m where
+  -- | Standard elemnt of sample
+  type SampleElem m :: *
+  pappend :: m -> SampleElem m -> m
 
 -- | Type class for
-class FoldStatistic m a => SingletonStat m a where
-  singletonStat :: a -> m
+class FoldStatistic m => SingletonStat m where
+  singletonStat :: SampleElem m -> m
 
 -- | Statistic accumulators which are meaningful for
-class NullStatistic m where
+class SingletonStat m => NullStatistic m where
   emptySample :: m
 
 -- | Statistic accumulators which admit efficient join.
-class SemigoupStat m where
+class FoldStatistic m => SemigoupStat m where
   joinSample :: m -> m -> m
 
 
@@ -67,13 +69,14 @@ class SemigoupStat m where
 data Mean = Mean Double Int
             deriving (Eq,Show)
 
-instance FoldStatistic Mean Double where
+instance FoldStatistic Mean where
+  type SampleElem Mean = Double
   pappend (Mean m n) x = Mean m' n'
     where
       m' = m + (x - m) / fromIntegral n'
       n' = n + 1
 
-instance SingletonStat Mean Double where
+instance SingletonStat Mean where
   singletonStat x = Mean x 1
 
 instance NullStatistic Mean where
