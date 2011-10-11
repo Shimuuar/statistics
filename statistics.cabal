@@ -154,7 +154,6 @@ library
   exposed-modules:
     Statistics.Autocorrelation
     Statistics.Constants
-    Statistics.Classes
     Statistics.Distribution
     Statistics.Distribution.Beta
     Statistics.Distribution.Binomial
@@ -179,6 +178,8 @@ library
     Statistics.Sample.Histogram
     Statistics.Sample.KernelDensity
     Statistics.Sample.KernelDensity.Simple
+    Statistics.Sample.Classes
+    Statistics.Sample.Estimators
     Statistics.Sample.Powers
     Statistics.Test.NonParametric
     Statistics.Test.ChiSquared
