@@ -21,6 +21,14 @@ module Statistics.Sample.Estimators (
   , Mean
   , calcMean
   , calcCountMean
+    -- ** Fast variance
+  , FastVar
+  , calcFastVar
+  , calcFastVarUnb
+  , calcFastStdDev
+  , calcFastStdDevUnb
+  , calcMeanFVar
+  , calcCountFVar
     -- * Transformers
   , SkipNaN
   , skipNaN
@@ -149,6 +157,60 @@ instance SemigoupEst Mean where
        n' = fromIntegral n
        k' = fromIntegral k
    {-# INLINE joinSample #-}
+
+
+
+----------------------------------------------------------------
+
+data FastVar = FastVar 
+               {-# UNPACK #-} !Int
+               {-# UNPACK #-} !Double
+               {-# UNPACK #-} !Double
+             deriving (Eq,Show,Typeable)
+
+-- | Extract biased estimate of variance from accumulator
+calcFastVar :: FastVar -> Double
+calcFastVar (FastVar n _ s)
+  | n > 1     = s / fromIntegral n
+  | otherwise = 0
+
+-- | Extract biased estimate of variance from accumulator
+calcFastVarUnb :: FastVar -> Double
+calcFastVarUnb (FastVar n _ s)
+  | n > 1     = s / fromIntegral (n - 1)
+  | otherwise = 0
+
+-- | Extract biased estimate of variance from accumulator
+calcFastStdDev :: FastVar -> Double
+calcFastStdDev = sqrt . calcFastVar
+
+-- | Extract biased estimate of variance from accumulator
+calcFastStdDevUnb :: FastVar -> Double
+calcFastStdDevUnb = sqrt . calcFastVarUnb
+
+calcMeanFVar :: FastVar -> Double
+calcMeanFVar (FastVar _ m _) = m
+
+calcCountFVar :: FastVar -> Int
+calcCountFVar (FastVar n _ _) = n
+
+instance FoldEstimator FastVar where
+  type StandardElem FastVar = Double
+  addStdElement (FastVar n m s) x = FastVar n' m' s'
+    where
+      n' = n + 1
+      m' = m + d / fromIntegral n'
+      s' = s + d * (x - m')
+      d  = x - m
+  {-# INLINE addStdElement #-}
+
+instance SingletonEst  FastVar where
+  singletonStat x = FastVar 1 x 0
+  {-# INLINE singletonStat #-}
+
+instance NullEstimator FastVar where
+  nullEstimator = FastVar 0 0 0
+  {-# INLINE nullEstimator #-}
 
 
 
