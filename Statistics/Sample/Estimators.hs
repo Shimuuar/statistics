@@ -12,6 +12,11 @@ module Statistics.Sample.Estimators (
     -- ** Sum of all elements
   , Sum
   , calcSum
+    -- ** Maximum and minimum
+  , Min
+  , calcMin
+  , Max
+  , calcMax
     -- ** Sample mean
   , Mean
   , calcMean
@@ -69,6 +74,52 @@ instance Num a => SemigoupEst (Sum a) where
   {-# INLINE joinSample #-}
 
 instance Num a => Accept (Sum a) a where
+  transformElem _ = id
+  {-# INLINE transformElem #-}
+
+----------------------------------------------------------------
+
+-- | Find minimal element in the sample
+newtype Min a = Min { calcMin :: a }
+                deriving (Show,Eq,Typeable)
+
+instance Ord a => FoldEstimator (Min a) where
+  type StandardElem (Min a) = a
+  addStdElement (Min a) b = Min $ min a b
+  {-# INLINE addStdElement #-}
+
+instance Ord a => SingletonEst (Min a) where
+  singletonStat = Min
+  {-# INLINE singletonStat #-}
+
+instance Ord a => SemigoupEst (Min a) where
+  joinSample (Min a) (Min b) = Min (min a b)
+  {-# INLINE joinSample #-}
+
+instance Ord a => Accept (Min a) a where
+  transformElem _ = id
+  {-# INLINE transformElem #-}
+
+----------------------------------------------------------------
+
+-- | Find maximal element in the sample
+newtype Max a = Max { calcMax :: a }
+                deriving (Show,Eq,Typeable)
+
+instance Ord a => FoldEstimator (Max a) where
+  type StandardElem (Max a) = a
+  addStdElement (Max a) b = Max $ max a b
+  {-# INLINE addStdElement #-}
+
+instance Ord a => SingletonEst (Max a) where
+  singletonStat = Max
+  {-# INLINE singletonStat #-}
+
+instance Ord a => SemigoupEst (Max a) where
+  joinSample (Max a) (Max b) = Max (max a b)
+  {-# INLINE joinSample #-}
+
+instance Ord a => Accept (Max a) a where
   transformElem _ = id
   {-# INLINE transformElem #-}
 
