@@ -21,6 +21,8 @@ module Statistics.Sample.Estimators (
   , Mean
   , calcMean
   , calcCountMean
+    -- ** Robust variance
+  , Variance
     -- ** Fast variance
   , FastVar
   , calcFastVar
@@ -158,6 +160,22 @@ instance SemigoupEst Mean where
        k' = fromIntegral k
    {-# INLINE joinSample #-}
 
+
+
+----------------------------------------------------------------
+
+-- WRONG! Don't divides by number of elements in the sample
+newtype Variance = Variance (Double -> Sum Double)
+
+calcVariance :: Variance
+             -> Double
+             -> Double
+calcVariance (Variance s) m = calcSum $ s m
+
+instance FoldEstimator Variance where
+  type StandardElem Variance = Double
+  addStdElement (Variance f) x = Variance $ \m -> addStdElement (f m) (x - m)
+  {-# INLINE addStdElement #-}
 
 
 ----------------------------------------------------------------
