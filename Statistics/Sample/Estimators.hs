@@ -160,23 +160,31 @@ instance SemigoupEst Mean where
        k' = fromIntegral k
    {-# INLINE joinSample #-}
 
-
+instance Accept Mean Double where
+  transformElem _ = id
 
 ----------------------------------------------------------------
 
--- WRONG! Don't divides by number of elements in the sample
-newtype Variance = Variance (Double -> Sum Double)
+newtype Variance = Variance (Double -> Mean)
 
-calcVariance :: Variance
+calcVariance :: Double
+             -> Variance
              -> Double
-             -> Double
-calcVariance (Variance s) m = calcSum $ s m
+calcVariance m (Variance s) = calcMean $ s m
 
 instance FoldEstimator Variance where
   type StandardElem Variance = Double
-  addStdElement (Variance f) x = Variance $ \m -> addStdElement (f m) (x - m)
+  addStdElement (Variance f) x = Variance $ \m -> addStdElement (f m) (let d = x - m in d*d)
   {-# INLINE addStdElement #-}
+instance SingletonEst  Variance where
+  singletonStat x = Variance $ \m -> singletonStat (let d = x - m in d*d)
+instance NullEstimator Variance where
+  nullEstimator = Variance $ \_ -> nullEstimator
+instance SemigoupEst Variance where
+  joinSample (Variance f) (Variance g) = Variance $ \m -> joinSample (f m) (g m)
 
+instance Accept Variance Double where
+  transformElem _ = id
 
 ----------------------------------------------------------------
 
