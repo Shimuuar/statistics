@@ -34,22 +34,33 @@ import qualified Data.Vector.Generic   as G
 -- Sample
 ----------------------------------------------------------------
 
--- | Type class for samples.
+-- | Type class for samples. Since statistics doesn't depend on
+--   element order sample could be folded in any order.
+--
+--   It's stripped down version of 'Foldable' but since vectors
+--   couldn't be instances of foldable this type class is required.
 class Sample a where
-  -- | Element type of a sample
+  -- | Element type of a sample/
   type Elem a :: *
-  -- | Strict left fold over sample
-  foldSample    :: (acc -> Elem a -> acc) -> acc -> a -> acc
-  -- | Fold 1
-  foldSample1 :: (Elem a -> acc) -> (acc -> Elem a -> acc) -> a -> Maybe acc
+  -- | Strict fold over sample.
+  foldSample  :: (acc -> Elem a -> acc) -> acc -> a -> acc
+  -- | Variant of fold. Returns 'Nothing' for empty samples.
+  foldSample1 :: (Elem a -> acc)        -- ^ Transform first element into accumulator
+              -> (acc -> Elem a -> acc) -- ^ Accumulation function
+              -> a                      -- ^ Sample
+              -> Maybe acc
                            
+
+-- | Add elements from sample to accumulator
 accumElements :: (Sample a, FoldEstimator m, Accept m (Elem a)) => m -> a -> m
 accumElements = foldSample addElement
 {-# INLINE accumElements #-}
 
+-- | Evaluate statistics over sample.
 evalStatistics :: (Sample a, NullEstimator m, Accept m (Elem a)) => a -> m
 evalStatistics = foldSample addElement nullEstimator
 {-# INLINE evalStatistics #-}
+
 
 evalStatistics1 :: (Sample a, SingletonEst m, Accept m (Elem a)) => a -> Maybe m
 evalStatistics1 xs = res
@@ -71,29 +82,29 @@ instance Sample [a] where
 
 instance U.Unbox a => Sample (U.Vector a) where
   type Elem (U.Vector a) = a
-  foldSample  = U.foldl'
-  foldSample1 = vectorFoldSample1
+  foldSample             = U.foldl'
+  foldSample1 tr f vec   = vectorFoldSample1 tr f vec
   {-# INLINE foldSample  #-}
   {-# INLINE foldSample1 #-}
 
 instance S.Storable a => Sample (S.Vector a) where
   type Elem (S.Vector a) = a
-  foldSample  = S.foldl'
-  foldSample1 = vectorFoldSample1
+  foldSample             = S.foldl'
+  foldSample1 tr f vec   = vectorFoldSample1 tr f vec
   {-# INLINE foldSample  #-}
   {-# INLINE foldSample1 #-}
 
 instance P.Prim a => Sample (P.Vector a) where
   type Elem (P.Vector a) = a
-  foldSample  = P.foldl'
-  foldSample1 = vectorFoldSample1
+  foldSample             = P.foldl'
+  foldSample1 tr f vec   = vectorFoldSample1 tr f vec
   {-# INLINE foldSample  #-}
   {-# INLINE foldSample1 #-}
 
 instance Sample (V.Vector a) where
   type Elem (V.Vector a) = a
-  foldSample  = V.foldl'
-  foldSample1 = vectorFoldSample1
+  foldSample             = V.foldl'
+  foldSample1 tr f vec   = vectorFoldSample1 tr f vec
   {-# INLINE foldSample  #-}
   {-# INLINE foldSample1 #-}
 
@@ -101,7 +112,7 @@ vectorFoldSample1 :: (G.Vector v a) => (a -> m) -> (m -> a -> m) -> v a -> Maybe
 vectorFoldSample1 tr f vec
   | G.null vec = Nothing
   | otherwise  = Just $ G.foldl' f (tr $ G.head vec) (G.tail vec)
-
+{-# INLINE vectorFoldSample1 #-}
 
 
                            
@@ -124,16 +135,21 @@ class FoldEstimator m where
   -- | Add one element to sample
   addStdElement  :: m -> StandardElem m -> m
 
+
 addElement :: (FoldEstimator m, Accept m a) => m -> a -> m
 addElement m = addStdElement m . transformElem (estimatorType m)
 {-# INLINE addElement #-}
 
 
--- | Type class for estimators which could be comuted
+-- | Type class for estimators which are defined for single element
+--   samples. It's nessesary to distinguish this type class from
+--   'NullEstimator' since some estimators are defined for single
+--   element samples but not for empty samples. E.g. minimum or
+--   maximum value.
 class FoldEstimator m => SingletonEst m where
   singletonStat :: StandardElem m -> m
 
--- | Statistic accumulators which are meaningful for
+-- | Estimators which are defined for empty samples.
 class SingletonEst m => NullEstimator m where
   nullEstimator :: m
 
