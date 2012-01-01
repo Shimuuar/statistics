@@ -137,8 +137,8 @@ instance Ord a => Accept (Max a) a where
 ----------------------------------------------------------------
 
 data Mean = Mean {
-    calcMean      :: Double 
-  , calcCountMean :: Int
+    calcMean      :: {-# UNPACK #-} !Double
+  , calcCountMean :: {-# UNPACK #-} !Int
   }
   deriving (Eq,Show,Typeable)
 
@@ -163,6 +163,8 @@ instance SemigoupEst Mean where
 
 instance Accept Mean Double where
   transformElem _ = id
+  {-# INLINE transformElem #-}
+
 
 ----------------------------------------------------------------
 

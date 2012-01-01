@@ -9,6 +9,10 @@ import Statistics.Sample
 import Statistics.Transform
 
 
+import Statistics.Sample.Classes
+import Statistics.Sample.Estimators
+
+
 -- Test sample
 sample :: U.Vector Double
 sample = runST $ flip uniformVector 10000 =<< create
@@ -60,6 +64,8 @@ main =
       [ bench  (show n) $ whnf idct  (U.take n sample)  | n <- fftSizes ]
     , bgroup "idct_"
       [ bench  (show n) $ whnf idct_ (U.take n sampleC) | n <- fftSizes ]
+  , bgroup "class"
+    [ bench "mean"             $ nf (calcMean . evalStatistics) sample
     ]
   ]
 
