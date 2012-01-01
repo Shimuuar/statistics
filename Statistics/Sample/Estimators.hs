@@ -23,6 +23,7 @@ module Statistics.Sample.Estimators (
   , calcCountMean
     -- ** Robust variance
   , Variance
+  , calcVariance
     -- ** Fast variance
   , FastVar
   , calcFastVar
