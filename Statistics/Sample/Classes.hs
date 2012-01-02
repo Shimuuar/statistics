@@ -1,7 +1,9 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE EmptyDataDecls        #-}
+{-# LANGUAGE BangPatterns          #-}
 module Statistics.Sample.Classes (
     -- * Type class for data samples
     Sample(..)
@@ -10,14 +12,9 @@ module Statistics.Sample.Classes (
   , evalStatistics1
     -- * Type class for estimators
   , FoldEstimator(..)
-  , addElement
   , SingletonEst(..)
   , NullEstimator(..)
   , SemigoupEst(..)
-    -- ** Multiple element types
-  , Accept(..)
-  , EstimatorType
-  , estimatorType
   ) where
 
 
@@ -52,21 +49,18 @@ class Sample a where
                            
 
 -- | Add elements from sample to accumulator
-accumElements :: (Sample a, FoldEstimator m, Accept m (Elem a)) => m -> a -> m
+accumElements :: (Sample a, FoldEstimator m (Elem a)) => m -> a -> m
 accumElements = foldSample addElement
 {-# INLINE accumElements #-}
 
 -- | Evaluate statistics over sample.
-evalStatistics :: (Sample a, NullEstimator m, Accept m (Elem a)) => a -> m
+evalStatistics :: (Sample a, FoldEstimator m (Elem a), NullEstimator m) => a -> m
 evalStatistics = foldSample addElement nullEstimator
 {-# INLINE evalStatistics #-}
 
 
-evalStatistics1 :: (Sample a, SingletonEst m, Accept m (Elem a)) => a -> Maybe m
-evalStatistics1 xs = res
-  where
-    res = foldSample1 (singletonStat . transformElem m) addElement xs
-    m   = estimatorType (fromJust res)
+evalStatistics1 :: (Sample a, SingletonEst m (Elem a)) => a -> Maybe m
+evalStatistics1 xs = foldSample1 singletonStat addElement xs
 {-# INLINE evalStatistics1 #-}
 
 
@@ -129,42 +123,44 @@ vectorFoldSample1 tr f vec
 -- > addStdElement m x = joinSample m (singletonStat x)
 
 -- | Type class for statistics which could be expresed by fold.
-class FoldEstimator m where
-  -- | Standard elemnt of sample
-  type StandardElem m :: *
+class FoldEstimator m a where
   -- | Add one element to sample
-  addStdElement  :: m -> StandardElem m -> m
-
-
-addElement :: (FoldEstimator m, Accept m a) => m -> a -> m
-addElement m = addStdElement m . transformElem (estimatorType m)
-{-# INLINE addElement #-}
-
+  addElement  :: m -> a -> m
 
 -- | Type class for estimators which are defined for single element
 --   samples. It's nessesary to distinguish this type class from
 --   'NullEstimator' since some estimators are defined for single
 --   element samples but not for empty samples. E.g. minimum or
 --   maximum value.
-class FoldEstimator m => SingletonEst m where
-  singletonStat :: StandardElem m -> m
+class FoldEstimator m a => SingletonEst m a where
+  singletonStat :: a -> m
 
 -- | Estimators which are defined for empty samples.
-class SingletonEst m => NullEstimator m where
+class NullEstimator m where
   nullEstimator :: m
 
 -- | Statistic accumulators which admit efficient join.
-class FoldEstimator m => SemigoupEst m where
+class SemigoupEst m where
   joinSample :: m -> m -> m
 
 
-----------------------------------------
-  
-data EstimatorType m
 
-estimatorType :: m -> EstimatorType m
-estimatorType _ = undefined
-{-# INLINE estimatorType #-}
 
-class FoldEstimator m => Accept m a where
-  transformElem :: EstimatorType m -> a -> StandardElem m
+----------------------------------------------------------------
+
+
+instance (FoldEstimator a x, FoldEstimator b x) => FoldEstimator (a,b) x where
+  addElement (!a,!b) x = (addElement a x, addElement b x)
+  {-# INLINE addElement #-}
+
+instance (SingletonEst a x, SingletonEst b x) => SingletonEst (a,b) x where
+  singletonStat x = (singletonStat x, singletonStat x)
+  {-# INLINE singletonStat #-}
+
+instance (NullEstimator a, NullEstimator b) => NullEstimator (a,b) where
+  nullEstimator = (nullEstimator, nullEstimator)
+  {-# INLINE nullEstimator #-}
+
+instance (SemigoupEst a, SemigoupEst b) => SemigoupEst (a,b) where
+  joinSample (!a1,!b1) (!a2,!b2) = (joinSample a1 a2, joinSample b1 b2)
+  {-# INLINE joinSample #-}

@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE BangPatterns       #-}
 {-# LANGUAGE TypeFamilies       #-}
 {-# LANGUAGE FlexibleInstances  #-}
@@ -49,21 +50,16 @@ newtype Count = Count {
   }
   deriving (Eq,Show,Typeable)
 
-instance FoldEstimator Count where
-  type StandardElem Count = ()
-  addStdElement (Count x) _ = Count (x+1)
-  {-# INLINE addStdElement #-}
+instance FoldEstimator Count a where
+  addElement (Count x) _ = Count (x+1)
+  {-# INLINE addElement #-}
 
-instance SingletonEst  Count where { singletonStat _ = Count 1; {-# INLINE singletonStat #-} }
-instance NullEstimator Count where { nullEstimator   = Count 0; {-# INLINE nullEstimator #-} }
+instance SingletonEst  Count a where { singletonStat _ = Count 1; {-# INLINE singletonStat #-} }
+instance NullEstimator Count   where { nullEstimator   = Count 0; {-# INLINE nullEstimator #-} }
 
 instance SemigoupEst Count where
   joinSample (Count n) (Count m) = Count (n+m)
   {-# INLINE joinSample #-}
-
-instance Accept Count a where
-  transformElem _ _ = ()
-  {-# INLINE transformElem #-}
 
 
 
@@ -72,21 +68,18 @@ instance Accept Count a where
 newtype Sum a = Sum { calcSum :: a} 
                 deriving (Show,Eq,Typeable)
 
-instance Num a => FoldEstimator (Sum a) where
-  type StandardElem (Sum a) = a
-  addStdElement (Sum s) x = Sum (s + x)
-  {-# INLINE addStdElement #-}
+instance Num a => FoldEstimator (Sum a) a where
+  addElement (Sum s) x = Sum (s + x)
+  {-# INLINE addElement #-}
 
-instance Num a => SingletonEst  (Sum a) where { singletonStat x = Sum x; {-# INLINE singletonStat #-} }
-instance Num a => NullEstimator (Sum a) where { nullEstimator   = Sum 0; {-# INLINE nullEstimator #-} }
+instance Num a => SingletonEst  (Sum a) a where { singletonStat x = Sum x; {-# INLINE singletonStat #-} }
+instance Num a => NullEstimator (Sum a)   where { nullEstimator   = Sum 0; {-# INLINE nullEstimator #-} }
 
 instance Num a => SemigoupEst (Sum a) where
   joinSample (Sum a) (Sum b) = Sum (a + b)
   {-# INLINE joinSample #-}
 
-instance Num a => Accept (Sum a) a where
-  transformElem _ = id
-  {-# INLINE transformElem #-}
+
 
 ----------------------------------------------------------------
 
@@ -94,12 +87,11 @@ instance Num a => Accept (Sum a) a where
 newtype Min a = Min { calcMin :: a }
                 deriving (Show,Eq,Typeable)
 
-instance Ord a => FoldEstimator (Min a) where
-  type StandardElem (Min a) = a
-  addStdElement (Min a) b = Min $ min a b
-  {-# INLINE addStdElement #-}
+instance Ord a => FoldEstimator (Min a) a where
+  addElement (Min a) b = Min $ min a b
+  {-# INLINE addElement #-}
 
-instance Ord a => SingletonEst (Min a) where
+instance Ord a => SingletonEst (Min a) a where
   singletonStat = Min
   {-# INLINE singletonStat #-}
 
@@ -107,9 +99,7 @@ instance Ord a => SemigoupEst (Min a) where
   joinSample (Min a) (Min b) = Min (min a b)
   {-# INLINE joinSample #-}
 
-instance Ord a => Accept (Min a) a where
-  transformElem _ = id
-  {-# INLINE transformElem #-}
+
 
 ----------------------------------------------------------------
 
@@ -117,12 +107,11 @@ instance Ord a => Accept (Min a) a where
 newtype Max a = Max { calcMax :: a }
                 deriving (Show,Eq,Typeable)
 
-instance Ord a => FoldEstimator (Max a) where
-  type StandardElem (Max a) = a
-  addStdElement (Max a) b = Max $ max a b
-  {-# INLINE addStdElement #-}
+instance Ord a => FoldEstimator (Max a) a where
+  addElement (Max a) b = Max $ max a b
+  {-# INLINE addElement #-}
 
-instance Ord a => SingletonEst (Max a) where
+instance Ord a => SingletonEst (Max a) a where
   singletonStat = Max
   {-# INLINE singletonStat #-}
 
@@ -130,9 +119,7 @@ instance Ord a => SemigoupEst (Max a) where
   joinSample (Max a) (Max b) = Max (max a b)
   {-# INLINE joinSample #-}
 
-instance Ord a => Accept (Max a) a where
-  transformElem _ = id
-  {-# INLINE transformElem #-}
+
 
 ----------------------------------------------------------------
 
@@ -142,16 +129,15 @@ data Mean = Mean {
   }
   deriving (Eq,Show,Typeable)
 
-instance FoldEstimator Mean where
-  type StandardElem Mean = Double
-  addStdElement (Mean m n) x = Mean m' n'
+instance FoldEstimator Mean Double where
+  addElement (Mean m n) x = Mean m' n'
     where
       m' = m + (x - m) / fromIntegral n'
       n' = n + 1
-  {-# INLINE addStdElement #-}
+  {-# INLINE addElement #-}
 
-instance SingletonEst  Mean where { singletonStat x = Mean x 1; {-# INLINE singletonStat #-} }
-instance NullEstimator Mean where { nullEstimator   = Mean 0 0; {-# INLINE nullEstimator #-} }
+instance SingletonEst  Mean Double where { singletonStat x = Mean x 1; {-# INLINE singletonStat #-} }
+instance NullEstimator Mean        where { nullEstimator   = Mean 0 0; {-# INLINE nullEstimator #-} }
 
 instance SemigoupEst Mean where
    joinSample !(Mean x n) !(Mean y k) =
@@ -161,9 +147,7 @@ instance SemigoupEst Mean where
        k' = fromIntegral k
    {-# INLINE joinSample #-}
 
-instance Accept Mean Double where
-  transformElem _ = id
-  {-# INLINE transformElem #-}
+
 
 
 ----------------------------------------------------------------
@@ -175,19 +159,20 @@ calcVariance :: Double
              -> Double
 calcVariance m (Variance s) = calcMean $ s m
 
-instance FoldEstimator Variance where
-  type StandardElem Variance = Double
-  addStdElement (Variance f) x = Variance $ \m -> addStdElement (f m) (let d = x - m in d*d)
-  {-# INLINE addStdElement #-}
-instance SingletonEst  Variance where
+instance FoldEstimator Variance Double where
+  addElement (Variance f) x = Variance $ \m -> addElement (f m) (let d = x - m in d*d)
+  {-# INLINE addElement #-}
+
+instance SingletonEst  Variance Double where
   singletonStat x = Variance $ \m -> singletonStat (let d = x - m in d*d)
+
 instance NullEstimator Variance where
   nullEstimator = Variance $ \_ -> nullEstimator
+
 instance SemigoupEst Variance where
   joinSample (Variance f) (Variance g) = Variance $ \m -> joinSample (f m) (g m)
 
-instance Accept Variance Double where
-  transformElem _ = id
+
 
 ----------------------------------------------------------------
 
@@ -223,17 +208,16 @@ calcMeanFVar (FastVar _ m _) = m
 calcCountFVar :: FastVar -> Int
 calcCountFVar (FastVar n _ _) = n
 
-instance FoldEstimator FastVar where
-  type StandardElem FastVar = Double
-  addStdElement (FastVar n m s) x = FastVar n' m' s'
+instance FoldEstimator FastVar Double where
+  addElement (FastVar n m s) x = FastVar n' m' s'
     where
       n' = n + 1
       m' = m + d / fromIntegral n'
       s' = s + d * (x - m')
       d  = x - m
-  {-# INLINE addStdElement #-}
+  {-# INLINE addElement #-}
 
-instance SingletonEst  FastVar where
+instance SingletonEst  FastVar Double where
   singletonStat x = FastVar 1 x 0
   {-# INLINE singletonStat #-}
 
@@ -249,12 +233,11 @@ instance NullEstimator FastVar where
 newtype SkipNaN m = SkipNaN { skipNaN :: m }
                     deriving (Show,Eq,Typeable)
 
-instance FoldEstimator m => FoldEstimator (SkipNaN m) where
-  type StandardElem (SkipNaN m) = StandardElem m
-  addStdElement (SkipNaN m) x = SkipNaN (addStdElement m x)
-  {-# INLINE addStdElement #-}
+instance FoldEstimator m a => FoldEstimator (SkipNaN m) a where
+  addElement (SkipNaN m) x = SkipNaN (addElement m x)
+  {-# INLINE addElement #-}
 
-instance SingletonEst m => SingletonEst (SkipNaN m) where
+instance SingletonEst m a => SingletonEst (SkipNaN m) a where
   singletonStat x = SkipNaN (singletonStat x)
   {-# INLINE singletonStat #-}
 instance NullEstimator m => NullEstimator (SkipNaN m) where
