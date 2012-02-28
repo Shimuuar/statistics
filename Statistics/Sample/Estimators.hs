@@ -21,7 +21,7 @@ module Statistics.Sample.Estimators (
     -- ** Sample mean
   , Mean
   , calcMean
-  , calcCountMean
+  , calcMeanWeight
     -- ** Robust variance
   , Variance
   , calcVariance
@@ -41,6 +41,8 @@ module Statistics.Sample.Estimators (
 import Data.Typeable (Typeable)
 
 import Statistics.Sample.Classes
+
+
 
 ----------------------------------------------------------------
 
@@ -123,28 +125,51 @@ instance Ord a => SemigoupEst (Max a) where
 
 ----------------------------------------------------------------
 
+-- | Accumulator for sample mean. It uses Welford's algorithm to
+--   provide numerical stability
+--
+--   For elements of type 'Double' it calculates mean and for elements
+--   of type '(Double,Double)' it calculates weighted mean. Weight is
+--   second element of the tuple.
 data Mean = Mean {
-    calcMean      :: {-# UNPACK #-} !Double
-  , calcCountMean :: {-# UNPACK #-} !Int
+    calcMean       :: {-# UNPACK #-} !Double
+    -- ^ Get mean estimate from accumulator.
+  , calcMeanWeight :: {-# UNPACK #-} !Double
+    -- ^ Get summary weight of elements. For unweighted mean it equal
+    --   to total number of elements.
   }
   deriving (Eq,Show,Typeable)
 
 instance FoldEstimator Mean Double where
   addElement (Mean m n) x = Mean m' n'
     where
-      m' = m + (x - m) / fromIntegral n'
+      m' = m + (x - m) / n'
       n' = n + 1
   {-# INLINE addElement #-}
+instance FoldEstimator Mean (Double,Double) where
+  addElement e@(Mean m n) (x, w)
+    | w == 0    = e
+    | otherwise = Mean m' n'
+    where
+      n' = n + w
+      m' = m + w * (x - m) / n'
+  {-# INLINE addElement #-}
 
-instance SingletonEst  Mean Double where { singletonStat x = Mean x 1; {-# INLINE singletonStat #-} }
+instance SingletonEst  Mean Double where
+  singletonStat x = Mean x 1
+  {-# INLINE singletonStat #-}
+instance SingletonEst  Mean (Double,Double) where
+  singletonStat (x,w) = Mean x w
+  {-# INLINE singletonStat #-}
+
 instance NullEstimator Mean        where { nullEstimator   = Mean 0 0; {-# INLINE nullEstimator #-} }
 
 instance SemigoupEst Mean where
-   joinSample !(Mean x n) !(Mean y k) =
-     Mean ((x*n' + y*k') / (n' + k')) (n + k)
-     where
-       n' = fromIntegral n
-       k' = fromIntegral k
+   joinSample a@(Mean x n) b@(Mean y k)
+     | n == 0    = a
+     | k == 0    = b
+     | otherwise = Mean ((x*n + y*k) / s) s
+     where s = n + k
    {-# INLINE joinSample #-}
 
 
