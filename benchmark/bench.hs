@@ -11,7 +11,7 @@ import Statistics.Transform
 
 import Statistics.Sample.Classes
 import Statistics.Sample.Estimators
-
+import qualified Statistics.Sample.New as New
 
 -- Test sample
 sample :: U.Vector Double
@@ -65,7 +65,8 @@ main =
     , bgroup "idct_"
       [ bench  (show n) $ whnf idct_ (U.take n sampleC) | n <- fftSizes ]
   , bgroup "class"
-    [ bench "mean"             $ nf (calcMean . evalStatistics) sample
+    [ bench "mean"             $ nf New.mean         sample
+    , bench "meanWeighted"     $ nf New.meanWeighted sampleW
     ]
   ]
 
