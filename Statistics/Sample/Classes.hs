@@ -7,14 +7,15 @@
 module Statistics.Sample.Classes (
     -- * Type class for data samples
     Sample(..)
-  , accumElements  
+  , accumElements
   , evalStatistics
-  , evalStatistics1
     -- * Type class for estimators
   , FoldEstimator(..)
-  , SingletonEst(..)
   , NullEstimator(..)
   , SemigoupEst(..)
+    -- ** Estimators for non-empty samples
+  , NonEmptyEst(..)
+  , InitEst(..)
   ) where
 
 
@@ -41,12 +42,7 @@ class Sample a where
   type Elem a :: *
   -- | Strict fold over sample.
   foldSample  :: (acc -> Elem a -> acc) -> acc -> a -> acc
-  -- | Variant of fold. Returns 'Nothing' for empty samples.
-  foldSample1 :: (Elem a -> acc)        -- ^ Transform first element into accumulator
-              -> (acc -> Elem a -> acc) -- ^ Accumulation function
-              -> a                      -- ^ Sample
-              -> Maybe acc
-                           
+
 
 -- | Add elements from sample to accumulator
 accumElements :: (Sample a, FoldEstimator m (Elem a)) => m -> a -> m
@@ -59,9 +55,6 @@ evalStatistics = foldSample addElement nullEstimator
 {-# INLINE evalStatistics #-}
 
 
-evalStatistics1 :: (Sample a, SingletonEst m (Elem a)) => a -> Maybe m
-evalStatistics1 xs = foldSample1 singletonStat addElement xs
-{-# INLINE evalStatistics1 #-}
 
 
 -- Instances
@@ -69,47 +62,30 @@ evalStatistics1 xs = foldSample1 singletonStat addElement xs
 instance Sample [a] where
   type Elem [a] = a
   foldSample              = foldl'
-  foldSample1 _  _ []     = Nothing
-  foldSample1 tr f (x:xs) = Just $ foldl' f (tr x) xs
   {-# INLINE foldSample  #-}
-  {-# INLINE foldSample1 #-}
 
 instance U.Unbox a => Sample (U.Vector a) where
   type Elem (U.Vector a) = a
   foldSample             = U.foldl'
-  foldSample1 tr f vec   = vectorFoldSample1 tr f vec
   {-# INLINE foldSample  #-}
-  {-# INLINE foldSample1 #-}
 
 instance S.Storable a => Sample (S.Vector a) where
   type Elem (S.Vector a) = a
   foldSample             = S.foldl'
-  foldSample1 tr f vec   = vectorFoldSample1 tr f vec
   {-# INLINE foldSample  #-}
-  {-# INLINE foldSample1 #-}
 
 instance P.Prim a => Sample (P.Vector a) where
   type Elem (P.Vector a) = a
   foldSample             = P.foldl'
-  foldSample1 tr f vec   = vectorFoldSample1 tr f vec
   {-# INLINE foldSample  #-}
-  {-# INLINE foldSample1 #-}
 
 instance Sample (V.Vector a) where
   type Elem (V.Vector a) = a
   foldSample             = V.foldl'
-  foldSample1 tr f vec   = vectorFoldSample1 tr f vec
   {-# INLINE foldSample  #-}
-  {-# INLINE foldSample1 #-}
-
-vectorFoldSample1 :: (G.Vector v a) => (a -> m) -> (m -> a -> m) -> v a -> Maybe m
-vectorFoldSample1 tr f vec
-  | G.null vec = Nothing
-  | otherwise  = Just $ G.foldl' f (tr $ G.head vec) (G.tail vec)
-{-# INLINE vectorFoldSample1 #-}
 
 
-                           
+
 ----------------------------------------------------------------
 -- Estimators
 ----------------------------------------------------------------
@@ -119,21 +95,13 @@ vectorFoldSample1 tr f vec
 -- > joinSample x y = joinSample y x  -- commutativity
 -- > joinSample nullStat x = x        -- left identity
 -- > joinSample x nullStat = x        -- right identity
--- > 
+-- >
 -- > addStdElement m x = joinSample m (singletonStat x)
 
 -- | Type class for statistics which could be expresed by fold.
 class FoldEstimator m a where
   -- | Add one element to sample
   addElement  :: m -> a -> m
-
--- | Type class for estimators which are defined for single element
---   samples. It's nessesary to distinguish this type class from
---   'NullEstimator' since some estimators are defined for single
---   element samples but not for empty samples. E.g. minimum or
---   maximum value.
-class FoldEstimator m a => SingletonEst m a where
-  singletonStat :: a -> m
 
 -- | Estimators which are defined for empty samples.
 class NullEstimator m where
@@ -143,7 +111,23 @@ class NullEstimator m where
 class SemigoupEst m where
   joinSample :: m -> m -> m
 
+class FoldEstimator m a => NonEmptyEst m a where
+  nonemptyEst :: InitEst a m
 
+data InitEst a m
+  = Init (a -> InitEst a m)
+  | Est  m
+
+instance FoldEstimator m a => FoldEstimator (InitEst a m) a where
+  addElement (Init f) x = f x
+  addElement (Est  m) x = Est $ addElement m x
+  {-# INLINE addElement #-}
+
+instance SemigoupEst m => SemigoupEst (InitEst a m) where
+  joinSample (Est  m) (Est  n) = Est  $ joinSample m n
+  joinSample (Init f)  m       = Init $ \x -> joinSample (f x) m
+  joinSample m        (Init f) = Init $ \x -> joinSample (f x) m
+  {-# INLINE joinSample #-}
 
 
 ----------------------------------------------------------------
@@ -152,10 +136,6 @@ class SemigoupEst m where
 instance (FoldEstimator a x, FoldEstimator b x) => FoldEstimator (a,b) x where
   addElement (!a,!b) x = (addElement a x, addElement b x)
   {-# INLINE addElement #-}
-
-instance (SingletonEst a x, SingletonEst b x) => SingletonEst (a,b) x where
-  singletonStat x = (singletonStat x, singletonStat x)
-  {-# INLINE singletonStat #-}
 
 instance (NullEstimator a, NullEstimator b) => NullEstimator (a,b) where
   nullEstimator = (nullEstimator, nullEstimator)

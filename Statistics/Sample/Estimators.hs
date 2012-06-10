@@ -47,8 +47,8 @@ import Statistics.Sample.Classes
 ----------------------------------------------------------------
 
 -- | Count number of elements in the sample
-newtype Count = Count { 
-  calcCount :: Int 
+newtype Count = Count {
+  calcCount :: Int
   }
   deriving (Eq,Show,Typeable)
 
@@ -56,8 +56,9 @@ instance FoldEstimator Count a where
   addElement (Count x) _ = Count (x+1)
   {-# INLINE addElement #-}
 
-instance SingletonEst  Count a where { singletonStat _ = Count 1; {-# INLINE singletonStat #-} }
-instance NullEstimator Count   where { nullEstimator   = Count 0; {-# INLINE nullEstimator #-} }
+instance NullEstimator Count where
+  nullEstimator   = Count 0
+  {-# INLINE nullEstimator #-}
 
 instance SemigoupEst Count where
   joinSample (Count n) (Count m) = Count (n+m)
@@ -67,14 +68,13 @@ instance SemigoupEst Count where
 
 ----------------------------------------------------------------
 
-newtype Sum a = Sum { calcSum :: a} 
+newtype Sum a = Sum { calcSum :: a}
                 deriving (Show,Eq,Typeable)
 
 instance Num a => FoldEstimator (Sum a) a where
   addElement (Sum s) x = Sum (s + x)
   {-# INLINE addElement #-}
 
-instance Num a => SingletonEst  (Sum a) a where { singletonStat x = Sum x; {-# INLINE singletonStat #-} }
 instance Num a => NullEstimator (Sum a)   where { nullEstimator   = Sum 0; {-# INLINE nullEstimator #-} }
 
 instance Num a => SemigoupEst (Sum a) where
@@ -89,13 +89,13 @@ instance Num a => SemigoupEst (Sum a) where
 newtype Min a = Min { calcMin :: a }
                 deriving (Show,Eq,Typeable)
 
+instance Ord a => NonEmptyEst (Min a) a where
+  nonemptyEst = Init $ Est . Min
+  {-# INLINE nonemptyEst #-}
+
 instance Ord a => FoldEstimator (Min a) a where
   addElement (Min a) b = Min $ min a b
   {-# INLINE addElement #-}
-
-instance Ord a => SingletonEst (Min a) a where
-  singletonStat = Min
-  {-# INLINE singletonStat #-}
 
 instance Ord a => SemigoupEst (Min a) where
   joinSample (Min a) (Min b) = Min (min a b)
@@ -109,13 +109,14 @@ instance Ord a => SemigoupEst (Min a) where
 newtype Max a = Max { calcMax :: a }
                 deriving (Show,Eq,Typeable)
 
+
+instance Ord a => NonEmptyEst (Max a) a where
+  nonemptyEst = Init $ Est . Max
+  {-# INLINE nonemptyEst #-}
+
 instance Ord a => FoldEstimator (Max a) a where
   addElement (Max a) b = Max $ max a b
   {-# INLINE addElement #-}
-
-instance Ord a => SingletonEst (Max a) a where
-  singletonStat = Max
-  {-# INLINE singletonStat #-}
 
 instance Ord a => SemigoupEst (Max a) where
   joinSample (Max a) (Max b) = Max (max a b)
@@ -155,14 +156,9 @@ instance FoldEstimator Mean (Double,Double) where
       m' = m + w * (x - m) / n'
   {-# INLINE addElement #-}
 
-instance SingletonEst  Mean Double where
-  singletonStat x = Mean x 1
-  {-# INLINE singletonStat #-}
-instance SingletonEst  Mean (Double,Double) where
-  singletonStat (x,w) = Mean x w
-  {-# INLINE singletonStat #-}
-
-instance NullEstimator Mean        where { nullEstimator   = Mean 0 0; {-# INLINE nullEstimator #-} }
+instance NullEstimator Mean where
+  nullEstimator = Mean 0 0
+  {-# INLINE nullEstimator #-}
 
 instance SemigoupEst Mean where
    joinSample a@(Mean x n) b@(Mean y k)
@@ -188,9 +184,6 @@ instance FoldEstimator Variance Double where
   addElement (Variance f) x = Variance $ \m -> addElement (f m) (let d = x - m in d*d)
   {-# INLINE addElement #-}
 
-instance SingletonEst  Variance Double where
-  singletonStat x = Variance $ \m -> singletonStat (let d = x - m in d*d)
-
 instance NullEstimator Variance where
   nullEstimator = Variance $ \_ -> nullEstimator
 
@@ -201,7 +194,7 @@ instance SemigoupEst Variance where
 
 ----------------------------------------------------------------
 
-data FastVar = FastVar 
+data FastVar = FastVar
                {-# UNPACK #-} !Int
                {-# UNPACK #-} !Double
                {-# UNPACK #-} !Double
@@ -242,10 +235,6 @@ instance FoldEstimator FastVar Double where
       d  = x - m
   {-# INLINE addElement #-}
 
-instance SingletonEst  FastVar Double where
-  singletonStat x = FastVar 1 x 0
-  {-# INLINE singletonStat #-}
-
 instance NullEstimator FastVar where
   nullEstimator = FastVar 0 0 0
   {-# INLINE nullEstimator #-}
@@ -262,9 +251,6 @@ instance FoldEstimator m a => FoldEstimator (SkipNaN m) a where
   addElement (SkipNaN m) x = SkipNaN (addElement m x)
   {-# INLINE addElement #-}
 
-instance SingletonEst m a => SingletonEst (SkipNaN m) a where
-  singletonStat x = SkipNaN (singletonStat x)
-  {-# INLINE singletonStat #-}
 instance NullEstimator m => NullEstimator (SkipNaN m) where
   nullEstimator = SkipNaN nullEstimator
   {-# INLINE nullEstimator #-}
