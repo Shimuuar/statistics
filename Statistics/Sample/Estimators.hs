@@ -5,6 +5,8 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE EmptyDataDecls #-}
+
+{-# LANGUAGE UndecidableInstances #-}
 module Statistics.Sample.Estimators (
     -- * Statistics
     Count(..)
@@ -221,6 +223,9 @@ instance Calc VarianceEst (Double -> StdDevBiased) where
   calc est = StdDevBiased . calcVariance . calc est
   {-# INLINE calc #-}
 
+-- Eek! Undecidable
+instance Calc VarianceEst (Double -> r) => Calc VarianceEst (Mean -> r) where
+  calc est (Mean m) = calc est m
 
 
 ----------------------------------------------------------------
