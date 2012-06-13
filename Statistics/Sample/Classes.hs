@@ -9,6 +9,8 @@ module Statistics.Sample.Classes (
     Sample(..)
   , accumElements
   , evalStatistics
+  , estimateWith
+  , E(..)
     -- * Type class for estimators
   , FoldEstimator(..)
   , NullEstimator(..)
@@ -16,17 +18,18 @@ module Statistics.Sample.Classes (
     -- ** Estimators for non-empty samples
   , NonEmptyEst(..)
   , InitEst(..)
+    -- *
+  , Calc(..)
   ) where
 
 
 import Data.List  (foldl')
-import Data.Maybe (fromJust)
 
 import qualified Data.Vector           as V
 import qualified Data.Vector.Unboxed   as U
 import qualified Data.Vector.Primitive as P
 import qualified Data.Vector.Storable  as S
-import qualified Data.Vector.Generic   as G
+-- import qualified Data.Vector.Generic   as G
 
 ----------------------------------------------------------------
 -- Sample
@@ -54,7 +57,14 @@ evalStatistics :: (Sample a, FoldEstimator m (Elem a), NullEstimator m) => a -> 
 evalStatistics = foldSample addElement nullEstimator
 {-# INLINE evalStatistics #-}
 
+estimateWith :: (Sample a, FoldEstimator m (Elem a), NullEstimator m, Calc m r)
+             => E m
+             -> a
+             -> r
+estimateWith est xs = calc $ evalStatistics xs `asEstimator` est
 
+asEstimator :: m -> E m -> m
+asEstimator x _ = x
 
 
 -- Instances
@@ -132,6 +142,14 @@ instance SemigoupEst m => SemigoupEst (InitEst a m) where
 
 ----------------------------------------------------------------
 
+class Calc m r where
+  calc :: m -> r
+
+data E m = E
+
+
+
+----------------------------------------------------------------
 
 instance (FoldEstimator a x, FoldEstimator b x) => FoldEstimator (a,b) x where
   addElement (!a,!b) x = (addElement a x, addElement b x)
