@@ -62,11 +62,17 @@ newtype VarianceBiased = VarianceBiased { calcVarianceBiased :: Double }
 newtype StdDevBiased = StdDevBiased { calcStdDevBiased :: Double }
                      deriving (Eq,Show,Typeable,Data)
 
+instance Calc m Variance => Calc m StdDev where
+  calc = StdDev . sqrt . calcVariance . calc
+
+instance Calc m VarianceBiased => Calc m StdDevBiased where
+  calc = StdDevBiased . sqrt . calcVarianceBiased . calc
+
+
 
 ----------------------------------------------------------------
 -- Estimators
 ----------------------------------------------------------------
-
 
 -- | Count number of elements in the sample
 newtype CountEst = CountEst Int
@@ -265,12 +271,6 @@ instance Calc FastVar VarianceBiased where
   calc (FastVar n _ s)
     | n > 1     = VarianceBiased (s / fromIntegral n)
     | otherwise = VarianceBiased  0
-
-instance Calc FastVar StdDev where
-  calc = StdDev . sqrt . calcVariance . calc
-
-instance Calc FastVar StdDevBiased where
-  calc = StdDevBiased . sqrt . calcVarianceBiased . calc
 
 
 
