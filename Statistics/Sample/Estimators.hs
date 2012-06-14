@@ -113,7 +113,7 @@ instance Ord a => SemigoupEst (MinEst a) where
   joinSample (MinEst a) (MinEst b) = MinEst (min a b)
   {-# INLINE joinSample #-}
 
-instance Calc (MinEst a) (Min a) where
+instance a ~ a' => Calc (MinEst a) (Min a') where
   calc (MinEst x) = Min x
   {-# INLINE calc #-}
 
@@ -137,7 +137,7 @@ instance Ord a => SemigoupEst (MaxEst a) where
   joinSample (MaxEst a) (MaxEst b) = MaxEst (max a b)
   {-# INLINE joinSample #-}
 
-instance Calc (MaxEst a) (Max a) where
+instance a ~ a' => Calc (MaxEst a) (Max a') where
   calc (MaxEst x) = Max x
   {-# INLINE calc #-}
 
