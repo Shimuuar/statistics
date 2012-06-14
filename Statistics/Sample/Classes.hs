@@ -14,8 +14,9 @@ module Statistics.Sample.Classes (
   , evalStatistics
     -- ** X
   , E(..)
-  , estimateWith
   , asEstimator
+  , estimateWith
+  , estimateWithNonE
     -- ** Non-empty samples
   , NonEmptyEst(..)
   , InitEst(..)
@@ -85,6 +86,16 @@ estimateWith :: (Sample a, FoldEstimator m (Elem a), NullEstimator m, Calc m r)
 estimateWith est xs = calc $ evalStatistics xs `asEstimator` est
 {-# INLINE estimateWith #-}
 
+estimateWithNonE :: (Sample a, FoldEstimator m (Elem a), NonEmptyEst m (Elem a), Calc m r)
+                 => E m
+                 -> a
+                 -> Maybe r
+estimateWithNonE est xs
+  = calc $ evalStatistics xs `asEstimator` estimator est xs
+  where
+    estimator :: E m -> a -> E (InitEst (Elem a) m)
+    estimator _ _ = E
+{-# INLINE estimateWithNonE #-}
 
 -- | Select type of estimator. Similar to 'asTypeOf'
 asEstimator :: m -> E m -> m
