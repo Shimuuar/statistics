@@ -23,8 +23,8 @@ module Statistics.Sample.Estimators (
   , MaxEst(..)
     -- ** Sample mean and variance
   , MeanEst(..)
+  , RobustVariance(..)
   , VarianceEst(..)
-  , FastVar(..)
     -- * Transformers
   , SkipNaN(..)
   ) where
@@ -194,57 +194,57 @@ instance Calc MeanEst Mean where
 -- FIXME: check estimates for weighted events. Really important!
 
 -- | Robust estimator for variance
-newtype VarianceEst = VarianceEst (Double -> MeanEst)
+newtype RobustVariance = RobustVariance (Double -> MeanEst)
 
-instance FoldEstimator VarianceEst Double where
-  addElement (VarianceEst f) x = VarianceEst $ \m -> addElement (f m) (let d = x - m in d*d)
+instance FoldEstimator RobustVariance Double where
+  addElement (RobustVariance f) x = RobustVariance $ \m -> addElement (f m) (let d = x - m in d*d)
   {-# INLINE addElement #-}
 
-instance NullEstimator VarianceEst where
-  nullEstimator = VarianceEst $ \_ -> nullEstimator
+instance NullEstimator RobustVariance where
+  nullEstimator = RobustVariance $ \_ -> nullEstimator
   {-# INLINE nullEstimator #-}
 
-instance SemigoupEst VarianceEst where
-  joinSample (VarianceEst f) (VarianceEst g) = VarianceEst $ \m -> joinSample (f m) (g m)
+instance SemigoupEst RobustVariance where
+  joinSample (RobustVariance f) (RobustVariance g) = RobustVariance $ \m -> joinSample (f m) (g m)
   {-# INLINE joinSample #-}
 
-instance Calc VarianceEst (Double -> Variance) where
-  calc (VarianceEst est) m =
+instance Calc RobustVariance (Double -> Variance) where
+  calc (RobustVariance est) m =
     case est m of
       MeanEst x n
         | n < 2     -> Variance   0
         | otherwise -> Variance $ x * n / (n - 1)
   {-# INLINE calc #-}
 
-instance Calc VarianceEst (Double -> VarianceBiased) where
-  calc (VarianceEst est) m =
+instance Calc RobustVariance (Double -> VarianceBiased) where
+  calc (RobustVariance est) m =
     case est m of MeanEst x _ -> VarianceBiased x
   {-# INLINE calc #-}
 
-instance Calc VarianceEst (Double -> StdDev) where
+instance Calc RobustVariance (Double -> StdDev) where
   calc est = StdDev . calcVariance . calc est
   {-# INLINE calc #-}
 
-instance Calc VarianceEst (Double -> StdDevBiased) where
+instance Calc RobustVariance (Double -> StdDevBiased) where
   calc est = StdDevBiased . calcVariance . calc est
   {-# INLINE calc #-}
 
 -- Eek! Undecidable
-instance Calc VarianceEst (Double -> r) => Calc VarianceEst (Mean -> r) where
+instance Calc RobustVariance (Double -> r) => Calc RobustVariance (Mean -> r) where
   calc est (Mean m) = calc est m
 
 
 ----------------------------------------------------------------
 
-data FastVar = FastVar
+data VarianceEst = VarianceEst
                {-# UNPACK #-} !Int
                {-# UNPACK #-} !Double
                {-# UNPACK #-} !Double
              deriving (Eq,Show,Typeable)
 
 
-instance FoldEstimator FastVar Double where
-  addElement (FastVar n m s) x = FastVar n' m' s'
+instance FoldEstimator VarianceEst Double where
+  addElement (VarianceEst n m s) x = VarianceEst n' m' s'
     where
       n' = n + 1
       m' = m + d / fromIntegral n'
@@ -252,23 +252,23 @@ instance FoldEstimator FastVar Double where
       d  = x - m
   {-# INLINE addElement #-}
 
-instance NullEstimator FastVar where
-  nullEstimator = FastVar 0 0 0
+instance NullEstimator VarianceEst where
+  nullEstimator = VarianceEst 0 0 0
   {-# INLINE nullEstimator #-}
 
-instance Calc FastVar Mean where
-  calc (FastVar _ m _) = Mean m
+instance Calc VarianceEst Mean where
+  calc (VarianceEst _ m _) = Mean m
 
-instance Calc FastVar Count where
-  calc (FastVar n _ _) = Count n
+instance Calc VarianceEst Count where
+  calc (VarianceEst n _ _) = Count n
 
-instance Calc FastVar Variance where
-  calc (FastVar n _ s)
+instance Calc VarianceEst Variance where
+  calc (VarianceEst n _ s)
     | n > 1     = Variance (s / fromIntegral (n - 1))
     | otherwise = Variance  0
 
-instance Calc FastVar VarianceBiased where
-  calc (FastVar n _ s)
+instance Calc VarianceEst VarianceBiased where
+  calc (VarianceEst n _ s)
     | n > 1     = VarianceBiased (s / fromIntegral n)
     | otherwise = VarianceBiased  0
 
