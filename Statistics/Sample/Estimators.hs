@@ -188,6 +188,10 @@ instance SemigoupEst MeanEst where
 instance Calc MeanEst Mean where
   calc (MeanEst m _) = Mean m
 
+-- FIXME: utterly wrong!
+instance Calc MeanEst Count where
+  calc (MeanEst _ n) = Count $ round n
+
 
 ----------------------------------------------------------------
 
