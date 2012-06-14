@@ -154,6 +154,14 @@ instance (SemigoupEst a, SemigoupEst b) => SemigoupEst (a,b) where
   joinSample (!a1,!b1) (!a2,!b2) = (joinSample a1 a2, joinSample b1 b2)
   {-# INLINE joinSample #-}
 
+instance (Calc m r, Calc m q) => Calc m (r,q) where
+  calc m = (calc m, calc m)
+
+instance (Calc m r, Calc m q, Calc m s) => Calc m (r,q,s) where
+  calc m = (calc m, calc m, calc m)
+
+instance (Calc m r, Calc m q, Calc m s, Calc m t) => Calc m (r,q,s,t) where
+  calc m = (calc m, calc m, calc m, calc m)
 
 
 -- Sample
