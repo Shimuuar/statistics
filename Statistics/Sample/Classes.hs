@@ -85,6 +85,7 @@ estimateWith :: (Sample a, FoldEstimator m (Elem a), NullEstimator m, Calc m r)
 estimateWith est xs = calc $ evalStatistics xs `asEstimator` est
 {-# INLINE estimateWith #-}
 
+
 -- | Select type of estimator. Similar to 'asTypeOf'
 asEstimator :: m -> E m -> m
 asEstimator x _ = x
@@ -101,6 +102,10 @@ data InitEst a m
 
 class FoldEstimator m a => NonEmptyEst m a where
   nonemptyEst :: InitEst a m
+
+instance NonEmptyEst m a => NullEstimator (InitEst a m) where
+  nullEstimator = nonemptyEst
+  {-# INLINE nullEstimator #-}
 
 instance FoldEstimator m a => FoldEstimator (InitEst a m) a where
   addElement (Init f) x = f x
