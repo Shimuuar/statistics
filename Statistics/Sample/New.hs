@@ -5,6 +5,8 @@ module Statistics.Sample.New (
   -- * Statistics of location
     mean
   , meanWeighted
+    -- * Statistics of dispersion
+  , estVariance
   ) where
 
 import Statistics.Sample.Classes
@@ -21,3 +23,11 @@ mean = calcMean . estimateWith (E :: E MeanEst)
 meanWeighted :: (Elem s ~ (Double,Double), Sample s) => s -> Double
 meanWeighted = calcMean . estimateWith (E :: E MeanEst)
 {-# INLINE meanWeighted #-}
+
+estVariance :: (Elem s ~ Double, Sample s) => s -> VarianceEst
+estVariance xs
+  -- FIXME: count in fastvar and weight in Mean
+  = VarianceEst n m (v * fromIntegral n)
+  where
+    (Count n, Mean m) = estimateWith (E :: E MeanEst)        xs
+    Variance v        = estimateWith (E :: E RobustVariance) xs m
