@@ -65,8 +65,10 @@ main =
     , bgroup "idct_"
       [ bench  (show n) $ whnf idct_ (U.take n sampleC) | n <- fftSizes ]
   , bgroup "class"
-    [ bench "mean"             $ nf New.mean         sample
-    , bench "meanWeighted"     $ nf New.meanWeighted sampleW
+    [ bench "mean"             $ nf New.mean          sample
+    , bench "meanWeighted"     $ nf New.meanWeighted  sampleW
+    , bench "harmonicMean"     $ nf New.harmonicMean  sample
+    , bench "geometricMean"    $ nf New.geometricMean sample
     ]
   ]
 
