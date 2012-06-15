@@ -22,16 +22,20 @@ module Statistics.Sample.Classes (
   , InitEst(..)
     -- * Type class for data samples
   , Sample(..)
+  , FoldableSample(..)
+    -- ** Conversion function
+  , sampleToVector
+  , sampleToList
   ) where
-
 
 import Data.List  (foldl')
 
+import qualified Data.Foldable         as F
 import qualified Data.Vector           as V
 import qualified Data.Vector.Unboxed   as U
 import qualified Data.Vector.Primitive as P
 import qualified Data.Vector.Storable  as S
--- import qualified Data.Vector.Generic   as G
+import qualified Data.Vector.Generic   as G
 
 
 
@@ -149,6 +153,23 @@ class Sample a where
   type Elem a :: *
   -- | Strict fold over sample.
   foldSample  :: (acc -> Elem a -> acc) -> acc -> a -> acc
+
+-- | Netype wrapper for 'Foldable' instances
+newtype FoldableSample f a = FoldableSample { getFoldableSample :: f a }
+
+instance F.Foldable f => Sample (FoldableSample f a) where
+  type Elem (FoldableSample f a) = a
+  foldSample f a (FoldableSample xs) = F.foldl' f a xs
+
+
+-- | Convert arbitrary sample to vector
+sampleToVector :: (Sample s, G.Vector v (Elem s)) => s -> v (Elem s)
+sampleToVector = foldSample G.snoc G.empty
+
+-- | Converts arbitrary sample to list. Elements will appear in
+--   reverse order.
+sampleToList :: (Sample s) => s -> [Elem s]
+sampleToList = foldSample (flip (:)) []
 
 
 
