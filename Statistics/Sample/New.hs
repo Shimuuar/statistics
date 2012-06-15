@@ -9,6 +9,7 @@ module Statistics.Sample.New (
   , geometricMean
     -- * Statistics of dispersion
   , estVariance
+  , fastVariance
   ) where
 
 import Statistics.Sample.Classes
@@ -52,3 +53,7 @@ estVariance xs
   where
     (Count n, Mean m) = estimateWith (E :: E MeanEst)        xs
     Variance v        = estimateWith (E :: E RobustVariance) xs m
+
+fastVariance :: (Elem s ~ Double, Sample s) => s -> VarianceEst
+fastVariance = evalStatistics
+{-# INLINE fastVariance #-}
