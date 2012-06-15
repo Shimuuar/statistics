@@ -12,15 +12,19 @@ module Statistics.Sample.Estimators (
     Count(..)
   , Min(..)
   , Max(..)
-    -- ** Centrality statistics
+    -- ** Statistics of location
   , Mean(..)
+  , Median(..)
   , GeometricMean(..)
   , HarmonicMean(..)
-    -- ** Dispesion statistics
+    -- ** Statistics of dispesion
   , Variance(..)
   , StdDev(..)
   , VarianceBiased(..)
   , StdDevBiased(..)
+    -- * Statistics of distribution shape
+  , Skewness(..)
+  , Kurtosis(..)
 
     -- * Estimators
   , CountEst(..)
@@ -58,6 +62,9 @@ newtype Max a = Max { calcMax :: a }
 newtype Mean = Mean { calcMean :: Double }
                deriving (Eq,Show,Typeable,Data)
 
+newtype Median = Median { calcMedian :: Double }
+               deriving (Eq,Show,Typeable,Data)
+
 newtype GeometricMean = GeometricMean { calcGeometricMean :: Double }
                deriving (Eq,Show,Typeable,Data)
 
@@ -75,6 +82,12 @@ newtype VarianceBiased = VarianceBiased { calcVarianceBiased :: Double }
 
 newtype StdDevBiased = StdDevBiased { calcStdDevBiased :: Double }
                      deriving (Eq,Show,Typeable,Data)
+
+newtype Skewness = Skewness { calcSkewness :: Double }
+               deriving (Eq,Show,Typeable,Data)
+
+newtype Kurtosis = Kurtosis { calcKurtosis :: Double }
+               deriving (Eq,Show,Typeable,Data)
 
 instance Calc m Variance => Calc m StdDev where
   calc = StdDev . sqrt . calcVariance . calc
