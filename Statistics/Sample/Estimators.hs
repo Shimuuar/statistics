@@ -50,45 +50,86 @@ import Statistics.Sample.Classes
 -- Statistics
 ----------------------------------------------------------------
 
+-- | Number of elements in the sample.
 newtype Count = Count { calcCount :: Int }
                 deriving (Eq,Show,Typeable,Data)
 
+-- | Minimal value in the sample.
 newtype Min a = Min { calcMin :: a }
                 deriving (Eq,Show,Typeable,Data)
 
+-- | Maximal value in the sample.
 newtype Max a = Max { calcMax :: a }
                 deriving (Eq,Show,Typeable,Data)
 
+
+
+-- Statistics of location --------------------------------------
+
+-- | Arithmetic mean of the sample.
 newtype Mean = Mean { calcMean :: Double }
                deriving (Eq,Show,Typeable,Data)
 
+-- | Median of the sample.
 newtype Median = Median { calcMedian :: Double }
                deriving (Eq,Show,Typeable,Data)
 
+-- | Geometric mean of the sample.
 newtype GeometricMean = GeometricMean { calcGeometricMean :: Double }
                deriving (Eq,Show,Typeable,Data)
 
 newtype HarmonicMean = HarmonicMean { calcHarmonicMean :: Double }
                deriving (Eq,Show,Typeable,Data)
 
+
+
+-- Statistics of dispersion ------------------------------------
+
+
+-- | Unbiased estimate of variance. Also known as sample variance,
+--   where the denominator is /n/-1.
 newtype Variance = Variance { calcVariance :: Double }
                deriving (Eq,Show,Typeable,Data)
 
+-- | Standard deviation computed from unbiased estimate of variance.
 newtype StdDev = StdDev { calcStdDev :: Double }
                deriving (Eq,Show,Typeable,Data)
 
+-- | Maximum likelihood estimate of a sample's variance. Also known
+--   as the population variance, where the denominator is /n/.
 newtype VarianceBiased = VarianceBiased { calcVarianceBiased :: Double }
                        deriving (Eq,Show,Typeable,Data)
 
+-- | Standard deviation computed from likelihood estimate of variance.
 newtype StdDevBiased = StdDevBiased { calcStdDevBiased :: Double }
                      deriving (Eq,Show,Typeable,Data)
 
+-- | This is a measure of the asymmetry of its distribution.  A sample
+--   with negative skew is said to be /left-skewed/. Most of its mass
+--   is on the right of the distribution, with the tail on the left.
+--
+-- > skewness [1,100,101,102,103] = -1.497681449918257
+--
+--   A sample with positive skew is said to be /right-skewed/.
+--
+-- > skewness [1,2,3,4,100] = 1.4975367033335198
+--
+--   A sample's skewness is not defined if its 'variance' is zero.
 newtype Skewness = Skewness { calcSkewness :: Double }
-               deriving (Eq,Show,Typeable,Data)
+                 deriving (Eq,Show,Typeable,Data)
 
+-- | This is a measure of the \"peakedness\" of its distribution.  A
+--   high kurtosis indicates that more of the sample's variance is due
+--   to infrequent severe deviations, rather than more frequent modest
+--   deviations.
+--
+--   A sample's excess kurtosis is not defined if its 'variance' is
+--   zero.
 newtype Kurtosis = Kurtosis { calcKurtosis :: Double }
-               deriving (Eq,Show,Typeable,Data)
+                 deriving (Eq,Show,Typeable,Data)
 
+
+-- Instances
 instance Calc m Variance => Calc m StdDev where
   calc = StdDev . sqrt . calcVariance . calc
 
@@ -234,7 +275,7 @@ instance Calc HarmonicMeanEst HarmonicMean where
 ----------------------------------------------------------------
 
 -- | Accumulator for sample mean. It uses Welford's algorithm to
---   provide numerical stability
+--   provide numerical stability.
 --
 --   For elements of type 'Double' it calculates mean and for elements
 --   of type '(Double,Double)' it calculates weighted mean. Weight is
