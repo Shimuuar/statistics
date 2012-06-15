@@ -5,12 +5,18 @@ module Statistics.Sample.New (
   -- * Statistics of location
     mean
   , meanWeighted
+  , harmonicMean
+  , geometricMean
     -- * Statistics of dispersion
   , estVariance
   ) where
 
 import Statistics.Sample.Classes
 import Statistics.Sample.Estimators
+
+----------------------------------------------------------------
+-- Statistics of locations
+----------------------------------------------------------------
 
 -- | /O(n)/ Arithmetic mean.  This uses Welford's algorithm to provide
 -- numerical stability, using a single pass over the sample data.
@@ -23,6 +29,21 @@ mean = calcMean . estimateWith (E :: E MeanEst)
 meanWeighted :: (Elem s ~ (Double,Double), Sample s) => s -> Double
 meanWeighted = calcMean . estimateWith (E :: E MeanEst)
 {-# INLINE meanWeighted #-}
+
+-- | /O(n)/ Harmonic mean.  This algorithm performs a single pass over
+-- the sample.
+harmonicMean :: (Elem s ~ Double, Sample s) => s -> Double
+harmonicMean = calcHarmonicMean . estimateWith (E :: E HarmonicMeanEst)
+{-# INLINE harmonicMean #-}
+
+-- | /O(n)/ Geometric mean of a sample containing no negative values.
+geometricMean :: (Elem s ~ Double, Sample s) => s -> Double
+geometricMean = calcGeometricMean . estimateWith (E :: E GeometricMeanEst)
+{-# INLINE geometricMean #-}
+
+----------------------------------------------------------------
+-- Statistics of dispersion
+----------------------------------------------------------------
 
 estVariance :: (Elem s ~ Double, Sample s) => s -> VarianceEst
 estVariance xs

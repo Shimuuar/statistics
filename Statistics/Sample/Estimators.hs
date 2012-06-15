@@ -12,17 +12,25 @@ module Statistics.Sample.Estimators (
     Count(..)
   , Min(..)
   , Max(..)
+    -- ** Centrality statistics
   , Mean(..)
+  , GeometricMean(..)
+  , HarmonicMean(..)
+    -- ** Dispesion statistics
   , Variance(..)
   , StdDev(..)
   , VarianceBiased(..)
   , StdDevBiased(..)
+
     -- * Estimators
   , CountEst(..)
   , MinEst(..)
   , MaxEst(..)
     -- ** Sample mean and variance
   , MeanEst(..)
+  , GeometricMeanEst(..)
+  , HarmonicMeanEst(..)
+    -- ** Variance
   , RobustVariance(..)
   , VarianceEst(..)
     -- * Transformers
@@ -48,6 +56,12 @@ newtype Max a = Max { calcMax :: a }
                 deriving (Eq,Show,Typeable,Data)
 
 newtype Mean = Mean { calcMean :: Double }
+               deriving (Eq,Show,Typeable,Data)
+
+newtype GeometricMean = GeometricMean { calcGeometricMean :: Double }
+               deriving (Eq,Show,Typeable,Data)
+
+newtype HarmonicMean = HarmonicMean { calcHarmonicMean :: Double }
                deriving (Eq,Show,Typeable,Data)
 
 newtype Variance = Variance { calcVariance :: Double }
@@ -140,6 +154,67 @@ instance Ord a => SemigoupEst (MaxEst a) where
 instance a ~ a' => Calc (MaxEst a) (Max a') where
   calc (MaxEst x) = Max x
   {-# INLINE calc #-}
+
+
+
+----------------------------------------------------------------
+
+-- | Estimator for geometric mean. Sample must not contain
+--   non-positive elements otherwise algorithm will return nonsentical
+--   value.
+--
+--   For empty sample mean is set to 1.
+data GeometricMeanEst = GeometricMeanEst
+                        {-# UNPACK #-} !Double
+                        {-# UNPACK #-} !Int
+
+instance NullEstimator GeometricMeanEst where
+  nullEstimator = GeometricMeanEst 1 0
+  {-# INLINE nullEstimator #-}
+
+instance FoldEstimator GeometricMeanEst Double where
+  addElement (GeometricMeanEst x n) a = GeometricMeanEst (x * a) (n + 1)
+  {-# INLINE addElement #-}
+
+instance SemigoupEst GeometricMeanEst where
+  joinSample (GeometricMeanEst x n) (GeometricMeanEst y m) = GeometricMeanEst (x * y) (n + m)
+  {-# INLINE joinSample #-}
+
+instance Calc GeometricMeanEst Count where
+  calc (GeometricMeanEst _ n) = Count n
+
+instance Calc GeometricMeanEst GeometricMean where
+  calc (GeometricMeanEst x n) = GeometricMean $ x ** (1 / fromIntegral n)
+
+
+
+----------------------------------------------------------------
+-- | Estimator for geometric mean. Sample must not contain
+--   non-positive elements otherwise algorithm will return nonsentical
+--   value.
+--
+--   For empty sample mean is set to 1.
+data HarmonicMeanEst = HarmonicMeanEst
+                        {-# UNPACK #-} !Double
+                        {-# UNPACK #-} !Int
+
+instance NullEstimator HarmonicMeanEst where
+  nullEstimator = HarmonicMeanEst 0 0
+  {-# INLINE nullEstimator #-}
+
+instance FoldEstimator HarmonicMeanEst Double where
+  addElement (HarmonicMeanEst x n) a = HarmonicMeanEst (x + 1 / a) (n + 1)
+  {-# INLINE addElement #-}
+
+instance SemigoupEst HarmonicMeanEst where
+  joinSample (HarmonicMeanEst x n) (HarmonicMeanEst y m) = HarmonicMeanEst (x * y) (n + m)
+  {-# INLINE joinSample #-}
+
+instance Calc HarmonicMeanEst Count where
+  calc (HarmonicMeanEst _ n) = Count n
+
+instance Calc HarmonicMeanEst HarmonicMean where
+  calc (HarmonicMeanEst x n) = HarmonicMean $ fromIntegral n / x
 
 
 
