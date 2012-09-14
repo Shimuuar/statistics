@@ -175,6 +175,7 @@ library
     Statistics.Resampling
     Statistics.Resampling.Bootstrap
     Statistics.Sample
+    Statistics.Sample.New
     Statistics.Sample.Histogram
     Statistics.Sample.KernelDensity
     Statistics.Sample.KernelDensity.Simple
