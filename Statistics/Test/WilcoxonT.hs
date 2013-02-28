@@ -109,16 +109,18 @@ wilcoxonMatchedPairSignificant ::
   -> Int                 -- ^ The sample size from which the (T+,T-) values were derived.
   -> Double              -- ^ The p-value at which to test (e.g. 0.05)
   -> (Double, Double)    -- ^ The (T+, T-) values from 'wilcoxonMatchedPairSignedRank'.
-  -> Maybe TestResult    -- ^ Return 'Nothing' if the sample was too
-                         --   small to make a decision.
+  -> Maybe TestSignificance -- ^ Return 'Nothing' if the sample was too
+                            --   small to make a decision.
 wilcoxonMatchedPairSignificant test sampleSize p (tPlus, tMinus) =
   case test of
     -- According to my nearest book (Understanding Research Methods and Statistics
     -- by Gary W. Heiman, p590), to check that the first sample is bigger you must
     -- use the absolute value of T- for a one-tailed check:
-    OneTailed -> (significant . (abs tMinus <=) . fromIntegral) <$> wilcoxonMatchedPairCriticalValue sampleSize p
+    OneTailed ->  significant . (abs tMinus <=) . fromIntegral
+              <$> wilcoxonMatchedPairCriticalValue sampleSize p
     -- Otherwise you must use the value of T+ and T- with the smallest absolute value:
-    TwoTailed -> (significant . (t <=) . fromIntegral) <$> wilcoxonMatchedPairCriticalValue sampleSize (p/2)
+    TwoTailed ->  significant . (t <=) . fromIntegral
+              <$> wilcoxonMatchedPairCriticalValue sampleSize (p/2)
   where
     t = min (abs tPlus) (abs tMinus)
 
@@ -177,11 +179,11 @@ wilcoxonMatchedPairTest :: TestType   -- ^ Perform one-tailed test.
                         -> Double     -- ^ The p-value at which to test (e.g. 0.05)
                         -> Sample     -- ^ First sample
                         -> Sample     -- ^ Second sample
-                        -> Maybe TestResult
+                        -> Maybe TestSignificance
                         -- ^ Return 'Nothing' if the sample was too
                         --   small to make a decision.
-wilcoxonMatchedPairTest test p smp1 smp2 =
-    wilcoxonMatchedPairSignificant test (min n1 n2) p
+wilcoxonMatchedPairTest test p smp1 smp2
+  = wilcoxonMatchedPairSignificant test (min n1 n2) p
   $ wilcoxonMatchedPairSignedRank smp1 smp2
   where
     n1 = U.length smp1

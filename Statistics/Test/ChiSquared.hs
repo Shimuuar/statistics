@@ -29,7 +29,9 @@ chi2test :: (G.Vector v (Int,Double), G.Vector v Double)
 chi2test p ndf vec
   | ndf < 0        = error $ "Statistics.Test.ChiSquare.chi2test: negative NDF " ++ show ndf
   | n   < 0        = error $ "Statistics.Test.ChiSquare.chi2test: too short data sample"
-  | p > 0 && p < 1 = significant $ complCumulative d chi2 < p
+  | p > 0 && p < 1 = TestResult { observedSignificance  = complCumulative d chi2
+                                , requestedSignificance = p
+                                }
   | otherwise      = error $ "Statistics.Test.ChiSquare.chi2test: bad p-value: " ++ show p
   where
     n     = G.length vec - ndf - 1

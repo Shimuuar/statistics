@@ -190,7 +190,7 @@ mannWhitneyUSignificant ::
   -> (Int, Int)       -- ^ The samples' size from which the (U&#8321;,U&#8322;) values were derived.
   -> Double           -- ^ The p-value at which to test (e.g. 0.05)
   -> (Double, Double) -- ^ The (U&#8321;, U&#8322;) values from 'mannWhitneyU'.
-  -> Maybe TestResult -- ^ Return 'Nothing' if the sample was too
+  -> Maybe TestSignificance -- ^ Return 'Nothing' if the sample was too
                       --   small to make a decision.
 mannWhitneyUSignificant test (in1, in2) p (u1, u2)
    --Use normal approximation
@@ -222,7 +222,7 @@ mannWhitneyUtest :: TestType    -- ^ Perform one-tailed test (see description ab
                  -> Double      -- ^ The p-value at which to test (e.g. 0.05)
                  -> Sample      -- ^ First sample
                  -> Sample      -- ^ Second sample
-                 -> Maybe TestResult
+                 -> Maybe TestSignificance
                  -- ^ Return 'Nothing' if the sample was too small to
                  --   make a decision.
 mannWhitneyUtest ontTail p smp1 smp2 =

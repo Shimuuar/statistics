@@ -69,7 +69,9 @@ kolmogorovSmirnovTestCdf :: (Double -> Double) -- ^ CDF of distribution
                          -> Sample             -- ^ Data sample
                          -> TestResult
 kolmogorovSmirnovTestCdf cdf p sample
-  | p > 0 && p < 1 = significant $ 1 - prob < p
+  | p > 0 && p < 1 = TestResult { observedSignificance  = 1 - prob
+                                , requestedSignificance = p
+                                }
   | otherwise      = error "Statistics.Test.KolmogorovSmirnov.kolmogorovSmirnovTestCdf:bad p-value"
   where
     d    = kolmogorovSmirnovCdfD cdf sample
@@ -85,7 +87,10 @@ kolmogorovSmirnovTest2 :: Double -- ^ p-value
                        -> Sample -- ^ Sample 2
                        -> TestResult
 kolmogorovSmirnovTest2 p xs1 xs2
-  | p > 0 && p < 1 = significant $ 1 - prob( d*(en + 0.12 + 0.11/en) ) < p
+  | p > 0 && p < 1 = TestResult
+                     { observedSignificance  = 1 - prob( d*(en + 0.12 + 0.11/en) )
+                     , requestedSignificance = p
+                     }
   | otherwise      = error "Statistics.Test.KolmogorovSmirnov.kolmogorovSmirnovTest2:bad p-value"
   where
     d    = kolmogorovSmirnov2D xs1 xs2
