@@ -21,6 +21,8 @@ module Statistics.Distribution
     , Mean(..)
     , MaybeVariance(..)
     , Variance(..)
+    , MaybeEntropy(..)
+    , Entropy(..)
       -- ** Random number generation
     , ContGen(..)
     , DiscreteGen(..)
@@ -43,17 +45,21 @@ import System.Random.MWC
 class Distribution d where
     -- | Cumulative distribution function.  The probability that a
     -- random variable /X/ is less or equal than /x/,
-    -- i.e. P(/X/&#8804;/x/). 
+    -- i.e. P(/X/&#8804;/x/). Cumulative should be defined for
+    -- infinities as well:
+    --
+    -- > cumulative d +∞ = 1
+    -- > cumulative d -∞ = 0
     cumulative :: d -> Double -> Double
 
     -- | One's complement of cumulative distibution:
     --
     -- > complCumulative d x = 1 - cumulative d x
     --
-    -- It's useful when one is interested in P(/X/&#8805;/x/) and
+    -- It's useful when one is interested in P(/X/</x/) and
     -- expression on the right side begin to lose precision. This
     -- function have default implementation but implementors are
-    -- encouraged to provide more precise implementation
+    -- encouraged to provide more precise implementation.
     complCumulative :: d -> Double -> Double
     complCumulative d x = 1 - cumulative d x
 
@@ -63,18 +69,27 @@ class Distribution  d => DiscreteDistr d where
     probability :: d -> Int -> Double
 
 
--- | Continuous probability distributuion
+-- | Continuous probability distributuion.
+--
+--   Minimal complete definition is 'quantile' and either 'density' or
+--   'logDensity'.
 class Distribution d => ContDistr d where
     -- | Probability density function. Probability that random
     -- variable /X/ lies in the infinitesimal interval
     -- [/x/,/x+/&#948;/x/) equal to /density(x)/&#8901;&#948;/x/
     density :: d -> Double -> Double
+    density d = exp . logDensity d
+    {-# INLINE density #-}
 
     -- | Inverse of the cumulative distribution function. The value
     -- /x/ for which P(/X/&#8804;/x/) = /p/. If probability is outside
     -- of [0,1] range function should call 'error'
     quantile :: d -> Double -> Double
 
+    -- | Natural logarithm of density.
+    logDensity :: d -> Double -> Double
+    logDensity d = log . density d
+    {-# INLINE logDensity #-}
 
 
 -- | Type class for distributions with mean. 'maybeMean' should return
@@ -112,6 +127,22 @@ class (Mean d, MaybeVariance d) => Variance d where
     stdDev   :: d -> Double
     stdDev = sqrt . variance
 
+-- | Type class for distributions with entropy, meaning Shannon entropy
+--   in the case of a discrete distribution, or differential entropy in the
+--   case of a continuous one.  'maybeEntropy' should return 'Nothing' if
+--   entropy is undefined for the chosen parameter values.
+class (Distribution d) => MaybeEntropy d where
+  -- | Returns the entropy of a distribution, in nats, if such is defined.
+  maybeEntropy :: d -> Maybe Double
+  
+-- | Type class for distributions with entropy, meaning Shannon
+--   entropy in the case of a discrete distribution, or differential
+--   entropy in the case of a continuous one.  If the distribution has
+--   well-defined entropy for all valid parameter values then it
+--   should be an instance of this type class.
+class (MaybeEntropy d) => Entropy d where
+  -- | Returns the entropy of a distribution, in nats.
+  entropy :: d -> Double
 
 -- | Generate discrete random variates which have given
 --   distribution.

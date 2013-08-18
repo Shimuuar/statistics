@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveGeneric #-}
 -- |
 -- Module    : Statistics.Distribution.Geometric
 -- Copyright : (c) 2009 Bryan O'Sullivan
@@ -26,12 +26,17 @@ module Statistics.Distribution.Geometric
     , gdSuccess
     ) where
 
-import Data.Typeable (Typeable)
+import Data.Binary (Binary)
+import Data.Data (Data, Typeable)
+import GHC.Generics (Generic)
+import Numeric.MathFunctions.Constants(m_pos_inf)
 import qualified Statistics.Distribution as D
 
 newtype GeometricDistribution = GD {
       gdSuccess :: Double
-    } deriving (Eq, Read, Show, Typeable)
+    } deriving (Eq, Read, Show, Typeable, Data, Generic)
+
+instance Binary GeometricDistribution
 
 instance D.Distribution GeometricDistribution where
     cumulative = cumulative
@@ -54,6 +59,14 @@ instance D.MaybeVariance GeometricDistribution where
     maybeStdDev   = Just . D.stdDev
     maybeVariance = Just . D.variance
 
+instance D.Entropy GeometricDistribution where
+  entropy (GD s)
+    | s == 0 = m_pos_inf
+    | s == 1 = 0
+    | otherwise = negate $ (s * log s + (1-s) * log (1-s)) / s
+
+instance D.MaybeEntropy GeometricDistribution where
+  maybeEntropy = Just . D.entropy
 
 -- | Create geometric distribution.
 geometric :: Double                -- ^ Success rate
@@ -70,6 +83,9 @@ probability (GD s) n | n < 1     = 0
 {-# INLINE probability #-}
 
 cumulative :: GeometricDistribution -> Double -> Double
-cumulative (GD s) x | x < 1     = 0
-                    | otherwise = 1 - (1-s) ^ (floor x :: Int)
+cumulative (GD s) x
+  | x < 1        = 0
+  | isInfinite x = 1
+  | isNaN      x = error "Statistics.Distribution.Geometric.cumulative: NaN input"
+  | otherwise    = 1 - (1-s) ^ (floor x :: Int)
 {-# INLINE cumulative #-}

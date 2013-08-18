@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveGeneric #-}
 -- |
 -- Module    : Statistics.Distribution.FDistribution
 -- Copyright : (c) 2011 Aleksey Khudyakov
@@ -16,9 +16,12 @@ module Statistics.Distribution.FDistribution (
   , fDistributionNDF2
   ) where
 
+import Data.Binary (Binary)
+import Data.Data (Data, Typeable)
+import GHC.Generics (Generic)
 import qualified Statistics.Distribution as D
-import Data.Typeable         (Typeable)
-import Numeric.SpecFunctions (logBeta, incompleteBeta, invIncompleteBeta)
+import Numeric.SpecFunctions (
+  logBeta, incompleteBeta, invIncompleteBeta, digamma)
 
 
 
@@ -27,13 +30,14 @@ data FDistribution = F { fDistributionNDF1 :: {-# UNPACK #-} !Double
                        , fDistributionNDF2 :: {-# UNPACK #-} !Double
                        , _pdfFactor        :: {-# UNPACK #-} !Double
                        }
-                   deriving (Eq,Show,Read,Typeable)
+                   deriving (Eq, Show, Read, Typeable, Data, Generic)
 
+instance Binary FDistribution
 
 fDistribution :: Int -> Int -> FDistribution
 fDistribution n m
-  | n > 0 && m > 0 = 
-    let n' = fromIntegral n  
+  | n > 0 && m > 0 =
+    let n' = fromIntegral n
         m' = fromIntegral m
         f' = 0.5 * (log m' * m' + log n' * n') - logBeta (0.5*n') (0.5*m')
     in F n' m' f'
@@ -41,12 +45,12 @@ fDistribution n m
     error "Statistics.Distribution.FDistribution.fDistribution: non-positive number of degrees of freedom"
 
 instance D.Distribution FDistribution where
-  cumulative = cumulative 
+  cumulative = cumulative
 
 instance D.ContDistr FDistribution where
   density  = density
   quantile = quantile
-  
+
 cumulative :: FDistribution -> Double -> Double
 cumulative (F n m _) x
   | x <= 0       = 0
@@ -60,7 +64,7 @@ density (F n m fac) x
 
 quantile :: FDistribution -> Double -> Double
 quantile (F n m _) p
-  | p >= 0 && p <= 1 = 
+  | p >= 0 && p <= 1 =
     let x = invIncompleteBeta (0.5 * n) (0.5 * m) p
     in m * x / (n * (1 - x))
   | otherwise =
@@ -72,9 +76,22 @@ instance D.MaybeMean FDistribution where
                       | otherwise = Nothing
 
 instance D.MaybeVariance FDistribution where
-  maybeStdDev (F n m _) 
+  maybeStdDev (F n m _)
     | m > 4     = Just $ 2 * sqr m * (m + n - 2) / (n * sqr (m - 2) * (m - 4))
     | otherwise = Nothing
+
+instance D.Entropy FDistribution where
+  entropy (F n m _) =
+    let nHalf = 0.5 * n
+        mHalf = 0.5 * m in
+    log (n/m) 
+    + logBeta nHalf mHalf
+    + (1 - nHalf) * digamma nHalf 
+    - (1 + mHalf) * digamma mHalf
+    + (nHalf + mHalf) * digamma (nHalf + mHalf)
+
+instance D.MaybeEntropy FDistribution where
+  maybeEntropy = Just . D.entropy
 
 instance D.ContGen FDistribution where
   genContVar = D.genContinous

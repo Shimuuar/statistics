@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveGeneric #-}
 -- |
 -- Module    : Statistics.Distribution.Poisson
 -- Copyright : (c) 2009, 2011 Bryan O'Sullivan
@@ -24,7 +24,9 @@ module Statistics.Distribution.Poisson
     -- $references
     ) where
 
-import Data.Typeable (Typeable)
+import Data.Binary (Binary)
+import Data.Data (Data, Typeable)
+import GHC.Generics (Generic)
 import qualified Statistics.Distribution as D
 import qualified Statistics.Distribution.Poisson.Internal as I
 import Numeric.SpecFunctions (incompleteGamma)
@@ -33,12 +35,16 @@ import Numeric.SpecFunctions (incompleteGamma)
 
 newtype PoissonDistribution = PD {
       poissonLambda :: Double
-    } deriving (Eq, Read, Show, Typeable)
+    } deriving (Eq, Read, Show, Typeable, Data, Generic)
+
+instance Binary PoissonDistribution
 
 instance D.Distribution PoissonDistribution where
     cumulative (PD lambda) x
-      | x < 0     = 0
-      | otherwise = 1 - incompleteGamma (fromIntegral (floor x + 1 :: Int)) lambda
+      | x < 0        = 0
+      | isInfinite x = 1
+      | isNaN      x = error "Statistics.Distribution.Poisson.cumulative: NaN input"
+      | otherwise    = 1 - incompleteGamma (fromIntegral (floor x + 1 :: Int)) lambda
     {-# INLINE cumulative #-}
 
 instance D.DiscreteDistr PoissonDistribution where
@@ -59,6 +65,11 @@ instance D.MaybeMean PoissonDistribution where
 instance D.MaybeVariance PoissonDistribution where
     maybeStdDev   = Just . D.stdDev
 
+instance D.Entropy PoissonDistribution where
+  entropy (PD lambda) = I.poissonEntropy lambda
+
+instance D.MaybeEntropy PoissonDistribution where
+  maybeEntropy = Just . D.entropy
 
 -- | Create Poisson distribution.
 poisson :: Double -> PoissonDistribution
@@ -72,3 +83,6 @@ poisson l
 --
 -- * Loader, C. (2000) Fast and Accurate Computation of Binomial
 --   Probabilities. <http://projects.scipy.org/scipy/raw-attachment/ticket/620/loader2000Fast.pdf>
+-- * Adell, J., Lekuona, A., and Yu, Y. (2010) Sharp Bounds on the
+--   Entropy of the Poisson Law and Related Quantities
+--   <http://arxiv.org/pdf/1001.2897.pdf>

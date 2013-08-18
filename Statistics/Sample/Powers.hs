@@ -1,5 +1,5 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE BangPatterns     #-}
+{-# LANGUAGE BangPatterns, DeriveDataTypeable, DeriveGeneric,
+    FlexibleContexts #-}
 -- |
 -- Module    : Statistics.Sample.Powers
 -- Copyright : (c) 2009, 2010 Bryan O'Sullivan
@@ -47,8 +47,12 @@ module Statistics.Sample.Powers
     -- $references
     ) where
 
+import Data.Binary (Binary(..))
+import Data.Data (Data, Typeable)
+import Data.Vector.Binary ()
 import Data.Vector.Generic   (unsafeFreeze)
 import Data.Vector.Unboxed   ((!))
+import GHC.Generics (Generic)
 import Prelude hiding (sum)
 import Statistics.Function   (indexed)
 import Statistics.Internal   (inlinePerformIO)
@@ -59,7 +63,9 @@ import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed.Mutable as MU
 
 newtype Powers = Powers (U.Vector Double)
-    deriving (Eq, Show)
+    deriving (Eq, Read, Show, Typeable, Data, Generic)
+
+instance Binary Powers
 
 -- | O(/n/) Collect the /n/ simple powers of a sample.
 --

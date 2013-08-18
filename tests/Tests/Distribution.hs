@@ -35,6 +35,7 @@ import Statistics.Distribution.Hypergeometric
 import Statistics.Distribution.Normal
 import Statistics.Distribution.Poisson
 import Statistics.Distribution.StudentT
+import Statistics.Distribution.Transform
 import Statistics.Distribution.Uniform
 
 import Prelude hiding (catch)
@@ -53,6 +54,7 @@ distributionTests = testGroup "Tests for all distributions"
   , contDistrTests (T :: T NormalDistribution      )
   , contDistrTests (T :: T UniformDistribution     )
   , contDistrTests (T :: T StudentT                )
+  , contDistrTests (T :: T (LinearTransform StudentT) )
   , contDistrTests (T :: T FDistribution           )
 
   , discreteDistrTests (T :: T BinomialDistribution       )
@@ -82,14 +84,17 @@ discreteDistrTests t = testGroup ("Tests for: " ++ typeName t) $
   cdfTests t ++
   [ testProperty "Prob. sanity"         $ probSanityCheck       t
   , testProperty "CDF is sum of prob."  $ discreteCDFcorrect    t
+  , testProperty "Discrete CDF is OK"   $ cdfDiscreteIsCorrect  t
   ]
 
 -- Tests for distributions which have CDF
 cdfTests :: (Param d, Distribution d, QC.Arbitrary d, Show d) => T d -> [Test]
 cdfTests t =
   [ testProperty "C.D.F. sanity"        $ cdfSanityCheck         t
-  , testProperty "CDF limit at +∞"      $ cdfLimitAtPosInfinity  t
-  , testProperty "CDF limit at -∞"      $ cdfLimitAtNegInfinity  t
+  , testProperty "CDF limit at +inf"    $ cdfLimitAtPosInfinity  t
+  , testProperty "CDF limit at -inf"    $ cdfLimitAtNegInfinity  t
+  , testProperty "CDF at +inf = 1"      $ cdfAtPosInfinity       t
+  , testProperty "CDF at -inf = 1"      $ cdfAtNegInfinity       t
   , testProperty "CDF is nondecreasing" $ cdfIsNondecreasing     t
   , testProperty "1-CDF is correct"     $ cdfComplementIsCorrect t
   ]
@@ -104,13 +109,23 @@ cdfSanityCheck _ d x = c >= 0 && c <= 1
 cdfIsNondecreasing :: (Distribution d) => T d -> d -> Double -> Double -> Bool
 cdfIsNondecreasing _ d = monotonicallyIncreasesIEEE $ cumulative d
 
+-- cumulative d +∞ = 1
+cdfAtPosInfinity :: (Param d, Distribution d) => T d -> d -> Bool
+cdfAtPosInfinity _ d
+  = cumulative d (1/0) == 1
+
+-- cumulative d - ∞ = 0
+cdfAtNegInfinity :: (Param d, Distribution d) => T d -> d -> Bool
+cdfAtNegInfinity _ d
+  = cumulative d (-1/0) == 0
+
 -- CDF limit at +∞ is 1
 cdfLimitAtPosInfinity :: (Param d, Distribution d) => T d -> d -> Property
 cdfLimitAtPosInfinity _ d =
   okForInfLimit d ==> printTestCase ("Last elements: " ++ show (drop 990 probs))
                     $ Just 1.0 == (find (>=1) probs)
   where
-    probs = take 1000 $ map (cumulative d) $ iterate (*1.4) 1
+    probs = take 1000 $ map (cumulative d) $ iterate (*1.4) 1000
 
 -- CDF limit at -∞ is 0
 cdfLimitAtNegInfinity :: (Param d, Distribution d) => T d -> d -> Property
@@ -125,6 +140,29 @@ cdfLimitAtNegInfinity _ d =
 -- CDF's complement is implemented correctly
 cdfComplementIsCorrect :: (Distribution d) => T d -> d -> Double -> Bool
 cdfComplementIsCorrect _ d x = (eq 1e-14) 1 (cumulative d x + complCumulative d x)
+
+-- CDF for discrete distribution uses <= for comparison
+cdfDiscreteIsCorrect :: (DiscreteDistr d) => T d -> d -> Property
+cdfDiscreteIsCorrect _ d
+  = printTestCase (unlines badN)
+  $ null badN  
+  where
+    -- We are checking that:
+    --
+    -- > CDF(i) - CDF(i-e) = P(i)
+    --
+    -- Apporixmate equality is tricky here. Scale is set by maximum
+    -- value of CDF and probability. Case when all proabilities are
+    -- zero should be trated specially.
+    badN = [ printf "N=%3i    p[i]=%g\tp[i+1]=%g\tdP=%g\trelerr=%g" i p p1 dp ((p1-p-dp) / max p1 dp)
+           | i <- [0 .. 100]
+           , let p      = cumulative d $ fromIntegral i - 1e-6
+                 p1     = cumulative d $ fromIntegral i
+                 dp     = probability d i
+                 relerr = ((p1 - p) - dp) / max p1 dp
+           ,  not (p == 0 && p1 == 0 && dp == 0)
+           && relerr > 1e-14
+           ]
 
 
 -- PDF is positive
@@ -162,9 +200,9 @@ probSanityCheck _ d x = p >= 0 && p <= 1
 -- Check that discrete CDF is correct
 discreteCDFcorrect :: (DiscreteDistr d) => T d -> d -> Int -> Int -> Property
 discreteCDFcorrect _ d a b
-  = printTestCase (printf "CDF = %g" p1)
-  $ printTestCase (printf "Sum = %g" p2)
-  $ printTestCase (printf "Δ   = %g" (abs (p1 - p2)))
+  = printTestCase (printf "CDF   = %g" p1)
+  $ printTestCase (printf "Sum   = %g" p2)
+  $ printTestCase (printf "Delta = %g" (abs (p1 - p2)))
   $ abs (p1 - p2) < 3e-10
   -- Avoid too large differeneces. Otherwise there is to much to sum
   --
@@ -213,6 +251,11 @@ instance QC.Arbitrary CauchyDistribution where
                 <*> ((abs <$> arbitrary) `suchThat` (> 0))
 instance QC.Arbitrary StudentT where
   arbitrary = studentT <$> ((abs <$> arbitrary) `suchThat` (>0))
+instance QC.Arbitrary (LinearTransform StudentT) where
+  arbitrary = studentTUnstandardized
+           <$> ((abs <$> arbitrary) `suchThat` (>0))
+           <*> ((abs <$> arbitrary))
+           <*> ((abs <$> arbitrary) `suchThat` (>0))
 instance QC.Arbitrary FDistribution where
   arbitrary =  fDistribution 
            <$> ((abs <$> arbitrary) `suchThat` (>0))
@@ -237,6 +280,10 @@ instance Param StudentT where
   invQuantilePrec _ = 1e-13
   okForInfLimit   d = studentTndf d > 0.75
 
+instance Param (LinearTransform StudentT) where
+  invQuantilePrec _ = 1e-13
+  okForInfLimit   d = (studentTndf . linTransDistr) d > 0.75
+
 instance Param FDistribution where
   invQuantilePrec _ = 1e-12
 
@@ -257,6 +304,13 @@ unitTests = testGroup "Unit tests"
   , testStudentCDF 0.3  3.34  0.757146   -- CDF
   , testStudentCDF 1    0.42  0.626569
   , testStudentCDF 4.4  0.33  0.621739
+    -- Student-T General
+  , testStudentUnstandardizedPDF 0.3    1.2  4      0.45 0.0533456  -- PDF
+  , testStudentUnstandardizedPDF 4.3  (-2.4) 3.22 (-0.6) 0.0971141
+  , testStudentUnstandardizedPDF 3.8    0.22 7.62   0.14 0.0490523
+  , testStudentUnstandardizedCDF 0.3    1.2  4      0.45 0.458035   -- CDF
+  , testStudentUnstandardizedCDF 4.3  (-2.4) 3.22 (-0.6) 0.698001
+  , testStudentUnstandardizedCDF 3.8    0.22 7.62   0.14 0.496076
     -- F-distribution
   , testFdistrPDF  1  3   3     (1/(6 * pi)) -- PDF
   , testFdistrPDF  2  2   1.2   0.206612
@@ -268,17 +322,24 @@ unitTests = testGroup "Unit tests"
   where
     -- Student-T
     testStudentPDF ndf x exact
-      = testAssertion (printf "density (studentT %f) %f ≈ %f" ndf x exact)
+      = testAssertion (printf "density (studentT %f) %f ~ %f" ndf x exact)
       $ eq 1e-5  exact  (density (studentT ndf) x)
     testStudentCDF ndf x exact
-      = testAssertion (printf "cumulative (studentT %f) %f ≈ %f" ndf x exact)
+      = testAssertion (printf "cumulative (studentT %f) %f ~ %f" ndf x exact)
       $ eq 1e-5  exact  (cumulative (studentT ndf) x)
+    -- Student-T General
+    testStudentUnstandardizedPDF ndf mu sigma x exact
+      = testAssertion (printf "density (studentTUnstandardized %f %f %f) %f ~ %f" ndf mu sigma x exact)
+      $ eq 1e-5  exact  (density (studentTUnstandardized ndf mu sigma) x)
+    testStudentUnstandardizedCDF ndf mu sigma x exact
+      = testAssertion (printf "cumulative (studentTUnstandardized %f %f %f) %f ~ %f" ndf mu sigma x exact)
+      $ eq 1e-5  exact  (cumulative (studentTUnstandardized ndf mu sigma) x)
     -- F-distribution
     testFdistrPDF n m x exact
-      = testAssertion (printf "density (fDistribution %i %i) %f ≈ %f [got %f]" n m x exact d)
+      = testAssertion (printf "density (fDistribution %i %i) %f ~ %f [got %f]" n m x exact d)
       $ eq 1e-5  exact d
       where d = density (fDistribution n m) x
     testFdistrCDF n m x exact
-      = testAssertion (printf "cumulative (fDistribution %i %i) %f ≈ %f [got %f]" n m x exact d)
+      = testAssertion (printf "cumulative (fDistribution %i %i) %f ~ %f [got %f]" n m x exact d)
       $ eq 1e-5  exact d
       where d = cumulative (fDistribution n m) x

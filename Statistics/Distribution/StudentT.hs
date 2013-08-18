@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveGeneric #-}
 -- |
 -- Module    : Statistics.Distribution.StudentT
 -- Copyright : (c) 2011 Aleksey Khudyakov
@@ -13,33 +13,36 @@ module Statistics.Distribution.StudentT (
     StudentT
   , studentT
   , studentTndf
+  , studentTUnstandardized
   ) where
 
+import Data.Binary (Binary)
+import Data.Data (Data, Typeable)
+import GHC.Generics (Generic)
 import qualified Statistics.Distribution as D
-import Data.Typeable         (Typeable)
-import Numeric.SpecFunctions (logBeta, incompleteBeta, invIncompleteBeta)
-
-
+import Statistics.Distribution.Transform (LinearTransform (..))
+import Numeric.SpecFunctions (
+  logBeta, incompleteBeta, invIncompleteBeta, digamma)
 
 -- | Student-T distribution
 newtype StudentT = StudentT { studentTndf :: Double }
-                   deriving (Eq,Show,Read,Typeable)
+                   deriving (Eq, Show, Read, Typeable, Data, Generic)
 
+instance Binary StudentT
 
 -- | Create Student-T distribution. Number of parameters must be positive.
 studentT :: Double -> StudentT
 studentT ndf
   | ndf > 0   = StudentT ndf
-  | otherwise =
-    error "Statistics.Distribution.StudentT.studentT: non-positive number of degrees of freedom"
+  | otherwise = modErr "studentT" "non-positive number of degrees of freedom"
 
 instance D.Distribution StudentT where
-  cumulative = cumulative 
+  cumulative = cumulative
 
 instance D.ContDistr StudentT where
   density  = density
   quantile = quantile
-  
+
 cumulative :: StudentT -> Double -> Double
 cumulative (StudentT ndf) x
   | x > 0     = 1 - 0.5 * ibeta
@@ -53,13 +56,12 @@ density (StudentT ndf) x =
 
 quantile :: StudentT -> Double -> Double
 quantile (StudentT ndf) p
-  | p >= 0 && p <= 1 = 
+  | p >= 0 && p <= 1 =
     let x = invIncompleteBeta (0.5 * ndf) 0.5 (2 * min p (1 - p))
     in case sqrt $ ndf * (1 - x) / x of
          r | p < 0.5   -> -r
-           | otherwise -> r 
-  | otherwise =
-    error $ "Statistics.Distribution.Uniform.quantile: p must be in [0,1] range. Got: "++show p
+           | otherwise -> r
+  | otherwise = modErr "quantile" $ "p must be in [0,1] range. Got: "++show p
 
 
 instance D.MaybeMean StudentT where
@@ -67,8 +69,29 @@ instance D.MaybeMean StudentT where
                            | otherwise = Nothing
 
 instance D.MaybeVariance StudentT where
-  maybeStdDev (StudentT ndf) | ndf > 2   = Just $ ndf / (ndf - 2)
-                             | otherwise = Nothing
+  maybeVariance (StudentT ndf) | ndf > 2   = Just $! ndf / (ndf - 2)
+                               | otherwise = Nothing
+
+instance D.Entropy StudentT where
+  entropy (StudentT ndf) =
+    0.5 * (ndf+1) * (digamma ((1+ndf)/2) - digamma(ndf/2))
+    + log (sqrt ndf) 
+    + logBeta (ndf/2) 0.5
+
+instance D.MaybeEntropy StudentT where
+  maybeEntropy = Just . D.entropy
 
 instance D.ContGen StudentT where
   genContVar = D.genContinous
+
+-- | Create an unstandardized Student-t distribution.
+studentTUnstandardized :: Double -- ^ Number of degrees of freedom
+                       -> Double -- ^ Central value (0 for standard Student T distribution)
+                       -> Double -- ^ Scale parameter
+                       -> LinearTransform StudentT
+studentTUnstandardized ndf mu sigma
+  | sigma > 0 = LinearTransform mu sigma $ studentT ndf
+  | otherwise = modErr "studentTUnstandardized" $ "sigma must be > 0. Got: " ++ show sigma
+
+modErr :: String -> String -> a
+modErr fun msg = error $ "Statistics.Distribution.StudentT." ++ fun ++ ": " ++ msg

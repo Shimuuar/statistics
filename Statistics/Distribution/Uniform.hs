@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveGeneric #-}
 -- |
 -- Module    : Statistics.Distribution.Uniform
 -- Copyright : (c) 2011 Aleksey Khudyakov
@@ -19,7 +19,9 @@ module Statistics.Distribution.Uniform
     , uniformB
     ) where
 
-import Data.Typeable (Typeable)
+import Data.Binary (Binary)
+import Data.Data (Data, Typeable)
+import GHC.Generics (Generic)
 import qualified Statistics.Distribution as D
 import qualified System.Random.MWC       as MWC
 
@@ -28,7 +30,9 @@ import qualified System.Random.MWC       as MWC
 data UniformDistribution = UniformDistribution {
       uniformA :: {-# UNPACK #-} !Double -- ^ Low boundary of distribution
     , uniformB :: {-# UNPACK #-} !Double -- ^ Upper boundary of distribution
-    } deriving (Eq, Read, Show, Typeable)
+    } deriving (Eq, Read, Show, Typeable, Data, Generic)
+
+instance Binary UniformDistribution
 
 -- | Create uniform distribution.
 uniformDistr :: Double -> Double -> UniformDistribution
@@ -37,7 +41,7 @@ uniformDistr a b
   | a < b     = UniformDistribution a b
   | otherwise = error "Statistics.Distribution.Uniform.uniform: wrong parameters"
 -- NOTE: failure is in default branch to guard againist NaNs.
-                
+
 instance D.Distribution UniformDistribution where
   cumulative (UniformDistribution a b) x
     | x < a     = 0
@@ -68,6 +72,12 @@ instance D.MaybeMean UniformDistribution where
 
 instance D.MaybeVariance UniformDistribution where
     maybeStdDev   = Just . D.stdDev
+
+instance D.Entropy UniformDistribution where
+  entropy (UniformDistribution a b) = log (b - a)
+
+instance D.MaybeEntropy UniformDistribution where
+  maybeEntropy = Just . D.entropy
 
 instance D.ContGen UniformDistribution where
     genContVar (UniformDistribution a b) gen = MWC.uniformR (a,b) gen

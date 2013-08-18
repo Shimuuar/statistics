@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveGeneric #-}
 -- |
 -- Module    : Statistics.Distribution.Gamma
 -- Copyright : (c) 2009, 2011 Bryan O'Sullivan
@@ -25,9 +25,12 @@ module Statistics.Distribution.Gamma
     , gdScale
     ) where
 
-import Data.Typeable (Typeable)
+import Data.Binary (Binary)
+import Data.Data (Data, Typeable)
+import GHC.Generics (Generic)
 import Numeric.MathFunctions.Constants (m_pos_inf, m_NaN)
-import Numeric.SpecFunctions           (incompleteGamma, invIncompleteGamma)
+import Numeric.SpecFunctions (
+  incompleteGamma, invIncompleteGamma, logGamma, digamma)
 import Statistics.Distribution.Poisson.Internal  as Poisson
 import qualified Statistics.Distribution         as D
 import qualified System.Random.MWC.Distributions as MWC
@@ -36,7 +39,9 @@ import qualified System.Random.MWC.Distributions as MWC
 data GammaDistribution = GD {
       gdShape :: {-# UNPACK #-} !Double -- ^ Shape parameter, /k/.
     , gdScale :: {-# UNPACK #-} !Double -- ^ Scale parameter, &#977;.
-    } deriving (Eq, Read, Show, Typeable)
+    } deriving (Eq, Read, Show, Typeable, Data, Generic)
+
+instance Binary GammaDistribution
 
 -- | Create gamma distribution. Both shape and scale parameters must
 -- be positive.
@@ -79,6 +84,16 @@ instance D.MaybeMean GammaDistribution where
 instance D.MaybeVariance GammaDistribution where
     maybeStdDev   = Just . D.stdDev
     maybeVariance = Just . D.variance
+
+instance D.MaybeEntropy GammaDistribution where
+  maybeEntropy (GD a l)
+    | a > 0 && l > 0 = 
+      Just $
+      a 
+      + log l 
+      + logGamma a 
+      + (1-a) * digamma a
+    | otherwise = Nothing
 
 instance D.ContGen GammaDistribution where
     genContVar (GD a l) = MWC.gamma a l

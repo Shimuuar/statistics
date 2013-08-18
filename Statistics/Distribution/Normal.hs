@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE BangPatterns, DeriveDataTypeable, DeriveGeneric #-}
 -- |
 -- Module    : Statistics.Distribution.Normal
 -- Copyright : (c) 2009 Bryan O'Sullivan
@@ -20,12 +20,16 @@ module Statistics.Distribution.Normal
     , standard
     ) where
 
-import Data.Number.Erf (erfc)
-import Data.Typeable (Typeable)
+import Data.Binary (Binary)
+import Data.Data (Data, Typeable)
+import GHC.Generics (Generic)
 import Numeric.MathFunctions.Constants (m_sqrt_2, m_sqrt_2_pi)
+import Numeric.SpecFunctions           (erfc, invErfc)
 import qualified Statistics.Distribution as D
-import qualified Statistics.Sample as S
+import qualified Statistics.Sample       as S
 import qualified System.Random.MWC.Distributions as MWC
+
+
 
 -- | The normal distribution.
 data NormalDistribution = ND {
@@ -33,7 +37,9 @@ data NormalDistribution = ND {
     , stdDev     :: {-# UNPACK #-} !Double
     , ndPdfDenom :: {-# UNPACK #-} !Double
     , ndCdfDenom :: {-# UNPACK #-} !Double
-    } deriving (Eq, Read, Show, Typeable)
+    } deriving (Eq, Read, Show, Typeable, Data, Generic)
+
+instance Binary NormalDistribution
 
 instance D.Distribution NormalDistribution where
     cumulative      = cumulative
@@ -55,6 +61,12 @@ instance D.MaybeVariance NormalDistribution where
 
 instance D.Variance NormalDistribution where
     stdDev = stdDev
+
+instance D.Entropy NormalDistribution where
+  entropy d = 0.5 * log (2 * pi * exp 1 * D.variance d)
+
+instance D.MaybeEntropy NormalDistribution where
+  maybeEntropy = Just . D.entropy
 
 instance D.ContGen NormalDistribution where
     genContVar d = MWC.normal (mean d) (stdDev d)
@@ -81,14 +93,17 @@ normalDistr m sd
                    , ndPdfDenom = m_sqrt_2_pi * sd
                    , ndCdfDenom = m_sqrt_2 * sd
                    }
-  | otherwise = 
+  | otherwise =
     error $ "Statistics.Distribution.Normal.normalDistr: standard deviation must be positive. Got " ++ show sd
 
 -- | Create distribution using parameters estimated from
 --   sample. Variance is estimated using maximum likelihood method
 --   (biased estimation).
 normalFromSample :: S.Sample -> NormalDistribution
-normalFromSample a = normalDistr (S.mean a) (S.stdDev a)
+normalFromSample xs
+  = normalDistr m (sqrt v)
+  where
+    (m,v) = S.meanVariance xs
 
 density :: NormalDistribution -> Double -> Double
 density d x = exp (-xm * xm / (2 * sd * sd)) / ndPdfDenom d
@@ -106,8 +121,8 @@ quantile d p
   | p == 0         = -inf
   | p == 1         = inf
   | p == 0.5       = mean d
-  | p > 0 && p < 1 = x * stdDev d + mean d
+  | p > 0 && p < 1 = x * ndCdfDenom d + mean d
   | otherwise      =
     error $ "Statistics.Distribution.Normal.quantile: p must be in [0,1] range. Got: "++show p
-  where x          = D.findRoot standard p 0 (-100) 100
+  where x          = invErfc $ 2 * (1 - p)
         inf        = 1/0

@@ -34,6 +34,8 @@ import Statistics.Transform            (dct, idct)
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
 
+
+
 -- | Gaussian kernel density estimator for one-dimensional data, using
 -- the method of Botev et al.
 --
@@ -53,6 +55,7 @@ kde n0 xs = kde_ n0 (lo - range / 10) (hi + range / 10) xs
   where
     (lo,hi) = minMax xs
     range   | U.length xs <= 1 = 1       -- Unreasonable guess
+            | lo == hi         = 1       -- All elements are equal
             | otherwise        = hi - lo
 
 -- | Gaussian kernel density estimator for one-dimensional data, using
@@ -74,7 +77,7 @@ kde_ :: Int
      -> U.Vector Double -> (U.Vector Double, U.Vector Double)
 kde_ n0 min max xs
   | U.null xs = error "Statistics.KernelDensity.kde: empty sample"
-  | n0 < 1    = error "Statistics.KernelDensity.kde: invalid number of points"
+  | n0 <= 1   = error "Statistics.KernelDensity.kde: invalid number of points"
   | otherwise = (mesh, density)
   where
     mesh = G.generate ni $ \z -> min + (d * fromIntegral z)

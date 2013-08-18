@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveGeneric #-}
 -- |
 -- Module    : Statistics.Distribution.ChiSquared
 -- Copyright : (c) 2010 Alexey Khudyakov
@@ -18,8 +18,11 @@ module Statistics.Distribution.ChiSquared (
         , chiSquaredNDF
         ) where
 
-import Data.Typeable         (Typeable)
-import Numeric.SpecFunctions (incompleteGamma,invIncompleteGamma,logGamma)
+import Data.Binary (Binary)
+import Data.Data (Data, Typeable)
+import GHC.Generics (Generic)
+import Numeric.SpecFunctions (
+  incompleteGamma,invIncompleteGamma,logGamma,digamma)
 
 import qualified Statistics.Distribution         as D
 import qualified System.Random.MWC.Distributions as MWC
@@ -27,7 +30,9 @@ import qualified System.Random.MWC.Distributions as MWC
 
 -- | Chi-squared distribution
 newtype ChiSquared = ChiSquared Int
-                     deriving (Show,Typeable)
+                     deriving (Eq, Read, Show, Typeable, Data, Generic)
+
+instance Binary ChiSquared
 
 -- | Get number of degrees of freedom
 chiSquaredNDF :: ChiSquared -> Int
@@ -38,7 +43,7 @@ chiSquaredNDF (ChiSquared ndf) = ndf
 --   must be positive.
 chiSquared :: Int -> ChiSquared
 chiSquared n
-  | n <= 0    = error $ 
+  | n <= 0    = error $
      "Statistics.Distribution.ChiSquared.chiSquared: N.D.F. must be positive. Got " ++ show n
   | otherwise = ChiSquared n
 {-# INLINE chiSquared #-}
@@ -64,6 +69,17 @@ instance D.MaybeMean ChiSquared where
 instance D.MaybeVariance ChiSquared where
     maybeStdDev   = Just . D.stdDev
     maybeVariance = Just . D.variance
+    
+instance D.Entropy ChiSquared where
+  entropy (ChiSquared ndf) =
+    let kHalf = 0.5 * fromIntegral ndf in
+    kHalf 
+    + log 2 
+    + logGamma kHalf
+    + (1-kHalf) * digamma kHalf
+
+instance D.MaybeEntropy ChiSquared where
+  maybeEntropy = Just . D.entropy
 
 instance D.ContGen ChiSquared where
     genContVar (ChiSquared n) = MWC.chiSquare n

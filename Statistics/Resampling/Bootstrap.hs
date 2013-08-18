@@ -1,4 +1,5 @@
-{-# LANGUAGE DeriveDataTypeable, OverloadedStrings, RecordWildCards #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveGeneric, OverloadedStrings,
+    RecordWildCards #-}
 
 -- |
 -- Module    : Statistics.Resampling.Bootstrap
@@ -22,10 +23,12 @@ module Statistics.Resampling.Bootstrap
 
 import Control.DeepSeq (NFData)
 import Control.Exception (assert)
-import Control.Monad.Par (runPar, parMap)
+import Control.Monad.Par               (parMap,runPar)
+import Data.Binary (Binary)
 import Data.Data (Data)
 import Data.Typeable (Typeable)
 import Data.Vector.Unboxed ((!))
+import GHC.Generics
 import Statistics.Distribution (cumulative, quantile)
 import Statistics.Distribution.Normal
 import Statistics.Resampling (Resample(..), jackknife)
@@ -45,8 +48,9 @@ data Estimate = Estimate {
     -- the confidence interval).
     , estConfidenceLevel :: {-# UNPACK #-} !Double
     -- ^ Confidence level of the confidence intervals.
-    } deriving (Eq, Show, Typeable, Data)
+    } deriving (Eq, Read, Show, Typeable, Data, Generic)
 
+instance Binary Estimate
 instance NFData Estimate
 
 -- | Multiply the point, lower bound, and upper bound in an 'Estimate'
@@ -79,13 +83,14 @@ bootstrapBCA :: Double          -- ^ Confidence level
              -> [Estimator]     -- ^ Estimators
              -> [Resample]      -- ^ Resampled data
              -> [Estimate]
-bootstrapBCA confidenceLevel sample estimators resamples =
-    assert (confidenceLevel > 0 && confidenceLevel < 1)
-    runPar $ parMap (uncurry e) (zip estimators resamples)
+bootstrapBCA confidenceLevel sample estimators resamples
+  | confidenceLevel > 0 && confidenceLevel < 1
+      = runPar $ parMap (uncurry e) (zip estimators resamples)
+  | otherwise = error "Statistics.Resampling.Bootstrap.bootstrapBCA: confidence level outside (0,1) range"
   where
     e est (Resample resample)
       | U.length sample == 1 = estimate pt pt pt confidenceLevel
-      | otherwise = 
+      | otherwise =
           estimate pt (resample ! lo) (resample ! hi) confidenceLevel
       where
         pt    = est sample
