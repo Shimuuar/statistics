@@ -25,12 +25,13 @@ chi2test :: (G.Vector v (Int,Double), G.Vector v Double)
                                 --   N observation in total and
                                 --   accounted for automatically.
          -> v (Int,Double)      -- ^ Observation and expectation.
-         -> TestResult
+         -> TestResult ()
 chi2test p ndf vec
   | ndf < 0        = error $ "Statistics.Test.ChiSquare.chi2test: negative NDF " ++ show ndf
   | n   < 0        = error $ "Statistics.Test.ChiSquare.chi2test: too short data sample"
   | p > 0 && p < 1 = TestResult { observedSignificance  = complCumulative d chi2
                                 , requestedSignificance = p
+                                , otherTestData         = ()
                                 }
   | otherwise      = error $ "Statistics.Test.ChiSquare.chi2test: bad p-value: " ++ show p
   where

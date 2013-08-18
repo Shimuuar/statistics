@@ -58,7 +58,7 @@ kolmogorovSmirnovTest :: Distribution d
                       => d      -- ^ Distribution
                       -> Double -- ^ p-value
                       -> Sample -- ^ Data sample
-                      -> TestResult
+                      -> TestResult ()
 kolmogorovSmirnovTest d = kolmogorovSmirnovTestCdf (cumulative d)
 {-# INLINE kolmogorovSmirnovTest #-}
 
@@ -67,10 +67,11 @@ kolmogorovSmirnovTest d = kolmogorovSmirnovTestCdf (cumulative d)
 kolmogorovSmirnovTestCdf :: (Double -> Double) -- ^ CDF of distribution
                          -> Double             -- ^ p-value
                          -> Sample             -- ^ Data sample
-                         -> TestResult
+                         -> TestResult ()
 kolmogorovSmirnovTestCdf cdf p sample
   | p > 0 && p < 1 = TestResult { observedSignificance  = 1 - prob
                                 , requestedSignificance = p
+                                , otherTestData         = ()
                                 }
   | otherwise      = error "Statistics.Test.KolmogorovSmirnov.kolmogorovSmirnovTestCdf:bad p-value"
   where
@@ -85,11 +86,12 @@ kolmogorovSmirnovTestCdf cdf p sample
 kolmogorovSmirnovTest2 :: Double -- ^ p-value
                        -> Sample -- ^ Sample 1
                        -> Sample -- ^ Sample 2
-                       -> TestResult
+                       -> TestResult ()
 kolmogorovSmirnovTest2 p xs1 xs2
   | p > 0 && p < 1 = TestResult
                      { observedSignificance  = 1 - prob( d*(en + 0.12 + 0.11/en) )
                      , requestedSignificance = p
+                     , otherTestData         = ()
                      }
   | otherwise      = error "Statistics.Test.KolmogorovSmirnov.kolmogorovSmirnovTest2:bad p-value"
   where

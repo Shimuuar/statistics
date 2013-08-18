@@ -23,23 +23,25 @@ module Statistics.Test.Types (
 import Data.Data (Typeable,Data)
 
 
--- | Result of the statistical test
-data TestResult = TestResult
+-- | Result of the statistical test.
+data TestResult a = TestResult
   { observedSignificance  :: {-# UNPACK #-} !Double
     -- ^ P-value obtained from test.
   , requestedSignificance :: {-# UNPACK #-} !Double
-    -- ^ P-value which was requested during test.
+    -- ^ Size of sample.
+  , otherTestData         :: a
+    -- ^ Any other data provided by test.
   }
   deriving (Show,Eq,Typeable,Data)
 
 
 -- | Is test result significant or not.
-testIsSignificant :: TestResult -> Bool
-testIsSignificant (TestResult pObs pReq)
-  = pObs < pReq
+testIsSignificant :: TestResult a -> Bool
+testIsSignificant r
+  = observedSignificance r < requestedSignificance r
 
 -- | Is test result significant or not.
-testSignificance :: TestResult -> TestSignificance
+testSignificance :: TestResult a -> TestSignificance
 testSignificance t
   = if testIsSignificant t then Significant else NotSignificant
 
