@@ -44,9 +44,11 @@ module Statistics.Sample.Estimators (
   , SkipNaN(..)
   ) where
 
+import Control.Applicative
 import Data.Data (Typeable,Data)
 
 import Statistics.Sample.Classes
+
 
 ----------------------------------------------------------------
 --
@@ -214,47 +216,48 @@ instance Calc CountEst Count where
 ----------------------------------------------------------------
 
 -- | Find minimal element in the sample
-newtype MinEst a = MinEst a
+newtype MinEst a = MinEst (Maybe a)
                 deriving (Show,Eq,Typeable,Data)
--- FIXME:
-{-
-instance Ord a => NonEmptyEst (MinEst a) a where
-  nonemptyEst = Init $ Est . MinEst
-  {-# INLINE nonemptyEst #-}
+
+instance NullEstimator (MinEst a) where
+  nullEstimator = MinEst Nothing
 
 instance Ord a => FoldEstimator (MinEst a) a where
-  addElement (MinEst a) b = MinEst $ min a b
+  addElement (MinEst m) a = MinEst $ min a <$> m
   {-# INLINE addElement #-}
 
 instance Ord a => MonoidEst (MinEst a) where
-  mergeSamples (MinEst a) (MinEst b) = MinEst (min a b)
+  mergeSamples (MinEst (Just a)) (MinEst (Just b)) = MinEst $ Just $ min a b
+  mergeSamples (MinEst  m      ) (MinEst  n      ) = MinEst $ m <|> n
   {-# INLINE mergeSamples #-}
 
-instance a ~ a' => Calc (MinEst a) (Min a') where
-  calc (MinEst x) = Min x
-  {-# INLINE calc #-}
--}
+-- FIXME:
+-- instance a ~ a' => Calc (MinEst a) (Min a') where
+--   calc (MinEst x) = Min x
+--   {-# INLINE calc #-}
+
 
 
 ----------------------------------------------------------------
 
 -- | Find maximal element in the sample
-newtype MaxEst a = MaxEst a
+newtype MaxEst a = MaxEst (Maybe a)
                 deriving (Show,Eq,Typeable,Data)
--- FIXME:
-{-
-instance Ord a => NonEmptyEst (MaxEst a) a where
-  nonemptyEst = Init $ Est . MaxEst
-  {-# INLINE nonemptyEst #-}
+
+instance NullEstimator (MaxEst a) where
+  nullEstimator = MaxEst Nothing
 
 instance Ord a => FoldEstimator (MaxEst a) a where
-  addElement (MaxEst a) b = MaxEst $ max a b
+  addElement (MaxEst m) a = MaxEst $ max a <$> m
   {-# INLINE addElement #-}
 
 instance Ord a => MonoidEst (MaxEst a) where
-  mergeSamples (MaxEst a) (MaxEst b) = MaxEst (max a b)
+  mergeSamples (MaxEst (Just a)) (MaxEst (Just b)) = MaxEst $ Just $ max a b
+  mergeSamples (MaxEst  m      ) (MaxEst  n      ) = MaxEst $ m <|> n
   {-# INLINE mergeSamples #-}
 
+-- FIXME:
+{-
 instance a ~ a' => Calc (MaxEst a) (Max a') where
   calc (MaxEst x) = Max x
   {-# INLINE calc #-}
