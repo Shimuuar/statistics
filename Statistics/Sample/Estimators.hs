@@ -372,52 +372,25 @@ instance Calc (MeanEst Int) Count where
 
 ----------------------------------------------------------------
 
-{-
--- FIXME: check estimates for weighted events. Really important!
 
--- FIXME: we need to guarantee that parameter to the mean estimator is
---        always floated out. Otherwise we would face space leak
+estRobustVariance :: (Eq (Weight a), Element a) => Value a -> Estimator a b
+estRobustVariance mean = Estimator
+  { estFold  = \m a -> addElement m $ sqr . subtract mean <$> weightedElt a
+  , estState = nullEstimator
+    -- FIXME: I need to figure out how to write out function
+  , estOut   = undefined
+  , estNull  = isMeanEst nullEstimator
+  , estMerge = mergeSamples
+  }
+  where
+    isMeanEst :: MeanEst w -> MeanEst w
+    isMeanEst = id
 
--- | Robust estimator for variance
-newtype RobustVariance = RobustVariance (Double -> MeanEst)
+sqr :: Num a => a -> a
+sqr x = x * x
+{-# INLINE sqr #-}
 
-instance FoldEstimator RobustVariance Double where
-  addElement (RobustVariance f) x = RobustVariance $ \m -> addElement (f m) (let d = x - m in d*d)
-  {-# INLINE addElement #-}
 
-instance NullEstimator RobustVariance where
-  nullEstimator = RobustVariance $ \_ -> nullEstimator
-  {-# INLINE nullEstimator #-}
-
-instance MonoidEst RobustVariance where
-  mergeSamples (RobustVariance f) (RobustVariance g) = RobustVariance $ \m -> mergeSamples (f m) (g m)
-  {-# INLINE mergeSamples #-}
-
-instance Calc RobustVariance (Double -> Variance) where
-  calc (RobustVariance est) m =
-    case est m of
-      MeanEst x n
-        | n < 2     -> Variance   0
-        | otherwise -> Variance $ x * n / (n - 1)
-  {-# INLINE calc #-}
-
-instance Calc RobustVariance (Double -> VarianceBiased) where
-  calc (RobustVariance est) m =
-    case est m of MeanEst x _ -> VarianceBiased x
-  {-# INLINE calc #-}
-
-instance Calc RobustVariance (Double -> StdDev) where
-  calc est = StdDev . calcVariance . calc est
-  {-# INLINE calc #-}
-
-instance Calc RobustVariance (Double -> StdDevBiased) where
-  calc est = StdDevBiased . calcVariance . calc est
-  {-# INLINE calc #-}
-
--- Eek! Undecidable
-instance Calc RobustVariance (Double -> r) => Calc RobustVariance (Mean -> r) where
-  calc est (Mean m) = calc est m
--}
 
 ----------------------------------------------------------------
 
