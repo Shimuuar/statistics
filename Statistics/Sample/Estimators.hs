@@ -421,6 +421,9 @@ instance Calc RobustVariance (Double -> r) => Calc RobustVariance (Mean -> r) wh
 
 ----------------------------------------------------------------
 
+-- FIXME: Add weighted variant
+
+-- | Online variance estimator
 data VarianceEst = VarianceEst
                {-# UNPACK #-} !Int
                {-# UNPACK #-} !Double
