@@ -1,32 +1,42 @@
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE EmptyDataDecls        #-}
 {-# LANGUAGE BangPatterns          #-}
+-- |
+
+-- Calculation of many statistics be expressed as fold over data
+-- sample (for example: number of element, mean, any moment,
+-- minimum\/maximum etc.). So it's useful to expose these folds.
+-- Moreover many fold accumulators allow efficient join which
+-- corresponds to union of data samples.
+--
+-- However we cannot expose accumulator type for some estimators. For
+-- example robust variance estimator or n-th central moment depend on
+-- parameter mean for former and mean and number of moment for latter.
+--
+-- WRITEME: Double traversals (robust variance).
 module Statistics.Sample.Classes (
     -- * Type classes for estimators
     FoldEstimator(..)
   , NullEstimator(..)
-  , SemigoupEst(..)
+  , MonoidEst(..)
   , Calc(..)
+  , Sample(..)
+    -- * Hidden state
+  , Estimator(..)
+    -- * Derived combinators
   , accumElements
   , evalStatistics
-    -- ** X
-  , E(..)
-  , asEstimator
-  , estimateWith
-  , estimateWithNonE
-    -- ** Non-empty samples
-  , NonEmptyEst(..)
-  , InitEst(..)
-    -- * Type class for data samples
-  , Sample(..)
-  , FoldableSample(..)
-    -- ** Conversion function
-  , sampleToVector
-  , sampleToList
+  , mapReduceEst
+  , mapReduce
   ) where
+
+import Control.Arrow       ((***))
+import Control.Applicative (Applicative(..))
 
 import Data.List  (foldl')
 
@@ -43,14 +53,6 @@ import qualified Data.Vector.Generic   as G
 -- Estimators
 ----------------------------------------------------------------
 
--- Instances must obey following laws:
---
--- > joinSample x y = joinSample y x  -- commutativity
--- > joinSample nullStat x = x        -- left identity
--- > joinSample x nullStat = x        -- right identity
--- >
--- > addStdElement m x = joinSample m (singletonStat x)
-
 -- | Type class for statistics which could be expresed by fold.
 class FoldEstimator m a where
   -- | Add one element to sample
@@ -61,19 +63,73 @@ class NullEstimator m where
   nullEstimator :: m
 
 -- | Statistic accumulators which admit efficient join.
-class SemigoupEst m where
-  joinSample :: m -> m -> m
+class NullEstimator m => MonoidEst m where
+  mergeSamples  :: m -> m -> m
 
--- | Extract statistics from given estimator
+-- | Extract statistics from given estimator. Type of statistics is
+--   encoded in return type.
 class Calc m r where
   calc :: m -> r
 
--- | Type tag for estimator
-data E m = E
 
+-- | Type class for samples. Since statistics doesn't depend on
+--   element order sample could be folded in any order.
+--
+--   It's stripped down version of 'Foldable' but since vectors
+--   couldn't be instances of foldable this type class is required.
+class Sample s where
+  -- | Element type of a sample/
+  type Elem s :: *
+  -- | Strict fold over sample.
+  foldSample  :: (m -> Elem s -> m) -> m -> s -> m
+  -- | We have to pass dictionary explicitly
+  mapReduceSample ::  m
+                  -> (m -> m -> m)
+                  -> (Elem s -> a)
+                  -> (m -> a -> m)
+                  -> s
+                  -> m
+  mapReduceSample x _ toA fold
+    = foldSample (\m -> fold m . toA) x
+
+----------------------------------------------------------------
+-- Hidden state
+----------------------------------------------------------------
+
+-- | For estimators
+data Estimator a b = forall x. Estimator
+  { estFold  :: x -> a -> x     -- ^ Fold function
+  , estState :: !x              -- ^ Current content of accumulator
+  , estOut   :: x -> b          -- ^ Convert state to the output
+  , estNull  :: !x              -- ^ Estimator for empty sample
+  , estMerge :: x -> x -> x     -- ^ Function to merge two different estimators
+  }
+
+instance FoldEstimator (Estimator a b) a where
+  addElement (Estimator fold x out x0 merge) a
+    = Estimator fold (fold x a) out x0 merge
+
+instance Functor (Estimator a) where
+  fmap f (Estimator fold x out none merge)
+    = Estimator fold x (f . out) none merge
+
+instance Applicative (Estimator a) where
+  pure x = Estimator const x id x const
+  Estimator foldA xA outA noneA mergeA <*> Estimator foldB xB outB noneB mergeB
+    = Estimator (\(mA,mB) a -> (foldA mA a, foldB mB a))
+                (xA,xB)
+                (\(mA,mB) -> outA mA $ outB mB)
+                (noneA,noneB)
+                (\(mA,mB) (nA,nB) -> (mergeA mA nA, mergeB mB nB))
+
+
+
+----------------------------------------------------------------
+-- Derived functions
+----------------------------------------------------------------
 
 -- | Add elements from sample to accumulator
-accumElements :: (Sample a, FoldEstimator m (Elem a)) => m -> a -> m
+accumElements :: (Sample s, FoldEstimator m (Elem s)) => m -> s -> m
 accumElements = foldSample addElement
 {-# INLINE accumElements #-}
 
@@ -82,60 +138,20 @@ evalStatistics :: (Sample a, FoldEstimator m (Elem a), NullEstimator m) => a -> 
 evalStatistics = foldSample addElement nullEstimator
 {-# INLINE evalStatistics #-}
 
--- | Estimate some statistics for sample
-estimateWith :: (Sample a, FoldEstimator m (Elem a), NullEstimator m, Calc m r)
-             => E m -- ^ Type parameter for selecting estimator
-             -> a   -- ^ Data sample
-             -> r   -- ^ Statistics to calculate
-estimateWith est xs = calc $ evalStatistics xs `asEstimator` est
-{-# INLINE estimateWith #-}
-
-estimateWithNonE :: (Sample a, FoldEstimator m (Elem a), NonEmptyEst m (Elem a), Calc m r)
-                 => E m
-                 -> a
-                 -> Maybe r
-estimateWithNonE est xs
-  = calc $ evalStatistics xs `asEstimator` estimator est xs
-  where
-    estimator :: E m -> a -> E (InitEst (Elem a) m)
-    estimator _ _ = E
-{-# INLINE estimateWithNonE #-}
-
--- | Select type of estimator. Similar to 'asTypeOf'
-asEstimator :: m -> E m -> m
-asEstimator x _ = x
+mapReduce :: (MonoidEst m, FoldEstimator m a, Sample s)
+          => (Elem s -> a) -> s -> m
+mapReduce f
+  = mapReduceSample nullEstimator mergeSamples f addElement
+{-# INLINE mapReduce #-}
 
 
 
-----------------------------------------------------------------
--- Estimator which doesn't work for nonempty samples
-----------------------------------------------------------------
+mapReduceEst :: (Sample s)
+             => Estimator a b -> (Elem s -> a) -> s -> b
+mapReduceEst (Estimator fold _ out x0 merge) f s =
+-- FIXME: I need somehow pass dictionary for estimator as well!
+  out $ mapReduceSample x0 merge f fold s
 
-data InitEst a m
-  = Init (a -> InitEst a m)
-  | Est  m
-
-class FoldEstimator m a => NonEmptyEst m a where
-  nonemptyEst :: InitEst a m
-
-instance NonEmptyEst m a => NullEstimator (InitEst a m) where
-  nullEstimator = nonemptyEst
-  {-# INLINE nullEstimator #-}
-
-instance FoldEstimator m a => FoldEstimator (InitEst a m) a where
-  addElement (Init f) x = f x
-  addElement (Est  m) x = Est $ addElement m x
-  {-# INLINE addElement #-}
-
-instance SemigoupEst m => SemigoupEst (InitEst a m) where
-  joinSample (Est  m) (Est  n) = Est  $ joinSample m n
-  joinSample (Init f)  m       = Init $ \x -> joinSample (f x) m
-  joinSample m        (Init f) = Init $ \x -> joinSample (f x) m
-  {-# INLINE joinSample #-}
-
-instance Calc m r => Calc (InitEst a m) (Maybe r) where
-  calc (Init _) = Nothing
-  calc (Est  x) = Just $ calc x
 
 
 
@@ -143,17 +159,8 @@ instance Calc m r => Calc (InitEst a m) (Maybe r) where
 -- Sample
 ----------------------------------------------------------------
 
--- | Type class for samples. Since statistics doesn't depend on
---   element order sample could be folded in any order.
---
---   It's stripped down version of 'Foldable' but since vectors
---   couldn't be instances of foldable this type class is required.
-class Sample a where
-  -- | Element type of a sample/
-  type Elem a :: *
-  -- | Strict fold over sample.
-  foldSample  :: (acc -> Elem a -> acc) -> acc -> a -> acc
 
+{-
 -- | Netype wrapper for 'Foldable' instances
 newtype FoldableSample f a = FoldableSample { getFoldableSample :: f a }
 
@@ -170,14 +177,12 @@ sampleToVector = foldSample G.snoc G.empty
 --   reverse order.
 sampleToList :: (Sample s) => s -> [Elem s]
 sampleToList = foldSample (flip (:)) []
-
+-}
 
 
 ----------------------------------------------------------------
 -- Instances
 ----------------------------------------------------------------
-
--- Estimators
 
 instance (FoldEstimator a x, FoldEstimator b x) => FoldEstimator (a,b) x where
   addElement (!a,!b) x = (addElement a x, addElement b x)
@@ -187,9 +192,9 @@ instance (NullEstimator a, NullEstimator b) => NullEstimator (a,b) where
   nullEstimator = (nullEstimator, nullEstimator)
   {-# INLINE nullEstimator #-}
 
-instance (SemigoupEst a, SemigoupEst b) => SemigoupEst (a,b) where
-  joinSample (!a1,!b1) (!a2,!b2) = (joinSample a1 a2, joinSample b1 b2)
-  {-# INLINE joinSample #-}
+instance (MonoidEst a, MonoidEst b) => MonoidEst (a,b) where
+  mergeSamples (!a1,!b1) (!a2,!b2) = (mergeSamples a1 a2, mergeSamples b1 b2)
+  {-# INLINE mergeSamples #-}
 
 instance (Calc m r, Calc m q) => Calc m (r,q) where
   calc m = (calc m, calc m)
@@ -201,7 +206,6 @@ instance (Calc m r, Calc m q, Calc m s, Calc m t) => Calc m (r,q,s,t) where
   calc m = (calc m, calc m, calc m, calc m)
 
 
--- Sample
 
 instance Sample [a] where
   type Elem [a] = a

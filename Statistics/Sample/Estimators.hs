@@ -8,8 +8,10 @@
 
 {-# LANGUAGE UndecidableInstances #-}
 module Statistics.Sample.Estimators (
+    -- * Weighted
+    Weigthed(..)
     -- * Statistics
-    Count(..)
+  , Count(..)
   , Min(..)
   , Max(..)
     -- ** Statistics of location
@@ -45,6 +47,11 @@ import Data.Data (Typeable,Data)
 
 import Statistics.Sample.Classes
 
+----------------------------------------------------------------
+--
+----------------------------------------------------------------
+
+data Weigthed w a = Weigthed w a
 
 ----------------------------------------------------------------
 -- Statistics
@@ -153,9 +160,9 @@ instance NullEstimator CountEst where
   nullEstimator   = CountEst 0
   {-# INLINE nullEstimator #-}
 
-instance SemigoupEst CountEst where
-  joinSample (CountEst n) (CountEst m) = CountEst (n+m)
-  {-# INLINE joinSample #-}
+instance MonoidEst CountEst where
+  mergeSamples (CountEst n) (CountEst m) = CountEst (n+m)
+  {-# INLINE mergeSamples #-}
 
 instance Calc CountEst Count where
   calc (CountEst n) = Count n
@@ -168,7 +175,8 @@ instance Calc CountEst Count where
 -- | Find minimal element in the sample
 newtype MinEst a = MinEst a
                 deriving (Show,Eq,Typeable,Data)
-
+-- FIXME:
+{-
 instance Ord a => NonEmptyEst (MinEst a) a where
   nonemptyEst = Init $ Est . MinEst
   {-# INLINE nonemptyEst #-}
@@ -177,14 +185,14 @@ instance Ord a => FoldEstimator (MinEst a) a where
   addElement (MinEst a) b = MinEst $ min a b
   {-# INLINE addElement #-}
 
-instance Ord a => SemigoupEst (MinEst a) where
-  joinSample (MinEst a) (MinEst b) = MinEst (min a b)
-  {-# INLINE joinSample #-}
+instance Ord a => MonoidEst (MinEst a) where
+  mergeSamples (MinEst a) (MinEst b) = MinEst (min a b)
+  {-# INLINE mergeSamples #-}
 
 instance a ~ a' => Calc (MinEst a) (Min a') where
   calc (MinEst x) = Min x
   {-# INLINE calc #-}
-
+-}
 
 
 ----------------------------------------------------------------
@@ -192,7 +200,8 @@ instance a ~ a' => Calc (MinEst a) (Min a') where
 -- | Find maximal element in the sample
 newtype MaxEst a = MaxEst a
                 deriving (Show,Eq,Typeable,Data)
-
+-- FIXME:
+{-
 instance Ord a => NonEmptyEst (MaxEst a) a where
   nonemptyEst = Init $ Est . MaxEst
   {-# INLINE nonemptyEst #-}
@@ -201,14 +210,14 @@ instance Ord a => FoldEstimator (MaxEst a) a where
   addElement (MaxEst a) b = MaxEst $ max a b
   {-# INLINE addElement #-}
 
-instance Ord a => SemigoupEst (MaxEst a) where
-  joinSample (MaxEst a) (MaxEst b) = MaxEst (max a b)
-  {-# INLINE joinSample #-}
+instance Ord a => MonoidEst (MaxEst a) where
+  mergeSamples (MaxEst a) (MaxEst b) = MaxEst (max a b)
+  {-# INLINE mergeSamples #-}
 
 instance a ~ a' => Calc (MaxEst a) (Max a') where
   calc (MaxEst x) = Max x
   {-# INLINE calc #-}
-
+-}
 
 
 ----------------------------------------------------------------
@@ -230,9 +239,9 @@ instance FoldEstimator GeometricMeanEst Double where
   addElement (GeometricMeanEst x n) a = GeometricMeanEst (x * a) (n + 1)
   {-# INLINE addElement #-}
 
-instance SemigoupEst GeometricMeanEst where
-  joinSample (GeometricMeanEst x n) (GeometricMeanEst y m) = GeometricMeanEst (x * y) (n + m)
-  {-# INLINE joinSample #-}
+instance MonoidEst GeometricMeanEst where
+  mergeSamples (GeometricMeanEst x n) (GeometricMeanEst y m) = GeometricMeanEst (x * y) (n + m)
+  {-# INLINE mergeSamples #-}
 
 instance Calc GeometricMeanEst Count where
   calc (GeometricMeanEst _ n) = Count n
@@ -243,7 +252,7 @@ instance Calc GeometricMeanEst GeometricMean where
 
 
 ----------------------------------------------------------------
--- | Estimator for geometric mean. Sample must not contain
+-- | Estimator for harmonic mean. Sample must not contain
 --   non-positive elements otherwise algorithm will return nonsentical
 --   value.
 --
@@ -260,9 +269,9 @@ instance FoldEstimator HarmonicMeanEst Double where
   addElement (HarmonicMeanEst x n) a = HarmonicMeanEst (x + 1 / a) (n + 1)
   {-# INLINE addElement #-}
 
-instance SemigoupEst HarmonicMeanEst where
-  joinSample (HarmonicMeanEst x n) (HarmonicMeanEst y m) = HarmonicMeanEst (x * y) (n + m)
-  {-# INLINE joinSample #-}
+instance MonoidEst HarmonicMeanEst where
+  mergeSamples (HarmonicMeanEst x n) (HarmonicMeanEst y m) = HarmonicMeanEst (x * y) (n + m)
+  {-# INLINE mergeSamples #-}
 
 instance Calc HarmonicMeanEst Count where
   calc (HarmonicMeanEst _ n) = Count n
@@ -306,13 +315,13 @@ instance NullEstimator MeanEst where
   nullEstimator = MeanEst 0 0
   {-# INLINE nullEstimator #-}
 
-instance SemigoupEst MeanEst where
-   joinSample a@(MeanEst x n) b@(MeanEst y k)
+instance MonoidEst MeanEst where
+   mergeSamples a@(MeanEst x n) b@(MeanEst y k)
      | n == 0    = a
      | k == 0    = b
      | otherwise = MeanEst ((x*n + y*k) / s) s
      where s = n + k
-   {-# INLINE joinSample #-}
+   {-# INLINE mergeSamples #-}
 
 instance Calc MeanEst Mean where
   calc (MeanEst m _) = Mean m
@@ -326,6 +335,9 @@ instance Calc MeanEst Count where
 
 -- FIXME: check estimates for weighted events. Really important!
 
+-- FIXME: we need to guarantee that parameter to the mean estimator is
+--        always floated out. Otherwise we would face space leak
+
 -- | Robust estimator for variance
 newtype RobustVariance = RobustVariance (Double -> MeanEst)
 
@@ -337,9 +349,9 @@ instance NullEstimator RobustVariance where
   nullEstimator = RobustVariance $ \_ -> nullEstimator
   {-# INLINE nullEstimator #-}
 
-instance SemigoupEst RobustVariance where
-  joinSample (RobustVariance f) (RobustVariance g) = RobustVariance $ \m -> joinSample (f m) (g m)
-  {-# INLINE joinSample #-}
+instance MonoidEst RobustVariance where
+  mergeSamples (RobustVariance f) (RobustVariance g) = RobustVariance $ \m -> mergeSamples (f m) (g m)
+  {-# INLINE mergeSamples #-}
 
 instance Calc RobustVariance (Double -> Variance) where
   calc (RobustVariance est) m =
@@ -423,9 +435,9 @@ instance NullEstimator m => NullEstimator (SkipNaN m) where
   nullEstimator = SkipNaN nullEstimator
   {-# INLINE nullEstimator #-}
 
-instance SemigoupEst m => SemigoupEst (SkipNaN m) where
-  joinSample (SkipNaN m) (SkipNaN n) = SkipNaN (joinSample m n)
-  {-# INLINE joinSample #-}
+instance MonoidEst m => MonoidEst (SkipNaN m) where
+  mergeSamples (SkipNaN m) (SkipNaN n) = SkipNaN (mergeSamples m n)
+  {-# INLINE mergeSamples #-}
 
 instance Calc m r => Calc (SkipNaN m) r where
   calc = calc . skipNaN

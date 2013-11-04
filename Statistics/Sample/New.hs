@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 -- |
 -- More generic imlementation of functions from 'Statistics.Sample'
@@ -22,24 +23,27 @@ import Statistics.Sample.Estimators
 -- | /O(n)/ Arithmetic mean.  This uses Welford's algorithm to provide
 -- numerical stability, using a single pass over the sample data.
 mean :: (Elem s ~ Double, Sample s) => s -> Double
-mean = calcMean . estimateWith (E :: E MeanEst)
+mean s = calcMean $ calc (mapReduce id s :: MeanEst)
 {-# INLINE mean #-}
 
 -- | /O(n)/ Arithmetic mean for weighted sample. It uses a single-pass
 -- algorithm analogous to the one used by 'mean'.
 meanWeighted :: (Elem s ~ (Double,Double), Sample s) => s -> Double
-meanWeighted = calcMean . estimateWith (E :: E MeanEst)
+meanWeighted = undefined
+-- meanWeighted = calcMean . estimateWith (E :: E MeanEst)
 {-# INLINE meanWeighted #-}
 
 -- | /O(n)/ Harmonic mean.  This algorithm performs a single pass over
 -- the sample.
 harmonicMean :: (Elem s ~ Double, Sample s) => s -> Double
-harmonicMean = calcHarmonicMean . estimateWith (E :: E HarmonicMeanEst)
+harmonicMean = undefined
+-- harmonicMean = calcHarmonicMean . estimateWith (E :: E HarmonicMeanEst)
 {-# INLINE harmonicMean #-}
 
 -- | /O(n)/ Geometric mean of a sample containing no negative values.
 geometricMean :: (Elem s ~ Double, Sample s) => s -> Double
-geometricMean = calcGeometricMean . estimateWith (E :: E GeometricMeanEst)
+geometricMean = undefined
+-- geometricMean = calcGeometricMean . estimateWith (E :: E GeometricMeanEst)
 {-# INLINE geometricMean #-}
 
 ----------------------------------------------------------------
@@ -48,12 +52,13 @@ geometricMean = calcGeometricMean . estimateWith (E :: E GeometricMeanEst)
 
 estVariance :: (Elem s ~ Double, Sample s) => s -> VarianceEst
 estVariance xs
+  = undefined
   -- FIXME: count in fastvar and weight in Mean
-  = VarianceEst n m (v * fromIntegral n)
-  where
-    (Count n, Mean m) = estimateWith (E :: E MeanEst)        xs
-    Variance v        = estimateWith (E :: E RobustVariance) xs m
+  -- = VarianceEst n m (v * fromIntegral n)
+  -- where
+  --   (Count n, Mean m) = estimateWith (E :: E MeanEst)        xs
+  --   Variance v        = estimateWith (E :: E RobustVariance) xs m
 
 fastVariance :: (Elem s ~ Double, Sample s) => s -> VarianceEst
-fastVariance = evalStatistics
+fastVariance = undefined
 {-# INLINE fastVariance #-}
