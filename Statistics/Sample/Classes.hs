@@ -28,6 +28,7 @@ module Statistics.Sample.Classes (
   , Sample(..)
     -- * Hidden state
   , Estimator(..)
+  , estimator
     -- * Derived combinators
   , accumElements
   , evalStatistics
@@ -124,6 +125,10 @@ instance Applicative (Estimator a) where
                 (noneA,noneB)
                 (\(mA,mB) (nA,nB) -> (mergeA mA nA, mergeB mB nB))
 
+estimator :: (FoldEstimator m a, MonoidEst m) => Estimator a m
+{-# INLINE estimator #-}
+estimator
+  = Estimator addElement nullEstimator id nullEstimator mergeSamples
 
 
 ----------------------------------------------------------------
