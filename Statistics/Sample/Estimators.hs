@@ -68,7 +68,17 @@ class (ToDouble (Value a), ToDouble (Weight a)) =>  Element a where
   type Value  a :: *
   weightedElt :: a -> Weighted (Weight a) (Value a)
 
-data Weighted w a = Weighted w a
+data Weighted w a = Weighted !w !a
+
+instance Functor (Weighted w) where
+  fmap f (Weighted w a) = Weighted w (f a)
+  {-# INLINE fmap #-}
+
+instance (ToDouble w, ToDouble a) => Element (Weighted w a) where
+  type Weight (Weighted w a) = w
+  type Value  (Weighted w a) = a
+  weightedElt = id
+  {-# INLINE weightedElt #-}
 
 instance Element Double where
   type Weight Double = Int
@@ -258,27 +268,28 @@ instance a ~ a' => Calc (MaxEst a) (Max a') where
 --   value.
 --
 --   For empty sample mean is set to 1.
-data GeometricMeanEst = GeometricMeanEst
-                        {-# UNPACK #-} !Double
-                        {-# UNPACK #-} !Int
+newtype GeometricMeanEst w = GeometricMeanEst (MeanEst w)
 
-instance NullEstimator GeometricMeanEst where
-  nullEstimator = GeometricMeanEst 1 0
+instance Num w => NullEstimator (GeometricMeanEst w) where
+  nullEstimator = GeometricMeanEst nullEstimator
   {-# INLINE nullEstimator #-}
 
-instance FoldEstimator GeometricMeanEst Double where
-  addElement (GeometricMeanEst x n) a = GeometricMeanEst (x * a) (n + 1)
+instance (Element a, w ~ Weight a, Eq w, Floating (Value a)
+         ) => FoldEstimator (GeometricMeanEst w) a where
+  addElement (GeometricMeanEst m) a
+     = GeometricMeanEst $ addElement m $ fmap log $ weightedElt a
   {-# INLINE addElement #-}
 
-instance MonoidEst GeometricMeanEst where
-  mergeSamples (GeometricMeanEst x n) (GeometricMeanEst y m) = GeometricMeanEst (x * y) (n + m)
+instance (Eq w, ToDouble w) => MonoidEst (GeometricMeanEst w) where
+  mergeSamples (GeometricMeanEst m) (GeometricMeanEst n)
+    = GeometricMeanEst (mergeSamples m n)
   {-# INLINE mergeSamples #-}
 
-instance Calc GeometricMeanEst Count where
-  calc (GeometricMeanEst _ n) = Count n
+instance Calc (GeometricMeanEst Int) Count where
+  calc (GeometricMeanEst m) = calc m
 
-instance Calc GeometricMeanEst GeometricMean where
-  calc (GeometricMeanEst x n) = GeometricMean $ x ** (1 / fromIntegral n)
+instance Calc (GeometricMeanEst w) GeometricMean where
+  calc (GeometricMeanEst m) = GeometricMean $ exp $ calcMean $ calc m
 
 
 
