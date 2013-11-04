@@ -1,15 +1,16 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE BangPatterns       #-}
-{-# LANGUAGE TypeFamilies       #-}
 {-# LANGUAGE FlexibleInstances  #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE EmptyDataDecls #-}
-
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 module Statistics.Sample.Estimators (
-    -- * Weighted
-    Weigthed(..)
+    -- * Helper type classes
+    ToDouble(..)
+  , Element(..)
+  , Weighted(..)
     -- * Statistics
   , Count(..)
   , Min(..)
@@ -37,7 +38,7 @@ module Statistics.Sample.Estimators (
   , GeometricMeanEst(..)
   , HarmonicMeanEst(..)
     -- ** Variance
-  , RobustVariance(..)
+  -- , RobustVariance(..)
   , VarianceEst(..)
     -- * Transformers
   , SkipNaN(..)
@@ -51,7 +52,37 @@ import Statistics.Sample.Classes
 --
 ----------------------------------------------------------------
 
-data Weigthed w a = Weigthed w a
+class Num a => ToDouble a where
+  toDouble :: a -> Double
+
+instance ToDouble Int    where
+  toDouble = fromIntegral
+  {-# INLINE toDouble #-}
+instance ToDouble Double where
+  toDouble = id
+  {-# INLINE toDouble #-}
+
+
+class (ToDouble (Value a), ToDouble (Weight a)) =>  Element a where
+  type Weight a :: *
+  type Value  a :: *
+  weightedElt :: a -> Weighted (Weight a) (Value a)
+
+data Weighted w a = Weighted w a
+
+instance Element Double where
+  type Weight Double = Int
+  type Value  Double = Double
+  weightedElt = Weighted 1
+  {-# INLINE weightedElt #-}
+
+instance Element Int where
+  type Weight Int = Int
+  type Value  Int = Int
+  weightedElt = Weighted 1
+  {-# INLINE weightedElt #-}
+
+
 
 ----------------------------------------------------------------
 -- Statistics
@@ -289,50 +320,45 @@ instance Calc HarmonicMeanEst HarmonicMean where
 --   For elements of type 'Double' it calculates mean and for elements
 --   of type '(Double,Double)' it calculates weighted mean. Weight is
 --   second element of the tuple.
-data MeanEst = MeanEst
+data MeanEst w = MeanEst
                {-# UNPACK #-} !Double -- Get mean estimate from accumulator.
-               {-# UNPACK #-} !Double
+               !w
                -- Get summary weight of elements. For unweighted mean it equal
                -- to total number of elements.
              deriving (Eq,Show,Typeable,Data)
 
-instance FoldEstimator MeanEst Double where
-  addElement (MeanEst m n) x = MeanEst m' n'
-    where
-      m' = m + (x - m) / n'
-      n' = n + 1
-  {-# INLINE addElement #-}
-instance FoldEstimator MeanEst (Double,Double) where
-  addElement e@(MeanEst m n) (x, w)
+instance (Element a, Eq w, w ~ Weight a) => FoldEstimator (MeanEst w) a where
+  addElement e@(MeanEst m n) a
     | w == 0    = e
     | otherwise = MeanEst m' n'
     where
+      Weighted w x = weightedElt a
       n' = n + w
-      m' = m + w * (x - m) / n'
+      m' = m + toDouble w * (toDouble x - m) / toDouble n'
   {-# INLINE addElement #-}
 
-instance NullEstimator MeanEst where
+instance Num w => NullEstimator (MeanEst w) where
   nullEstimator = MeanEst 0 0
   {-# INLINE nullEstimator #-}
 
-instance MonoidEst MeanEst where
+instance (ToDouble w, Eq w) => MonoidEst (MeanEst w) where
    mergeSamples a@(MeanEst x n) b@(MeanEst y k)
      | n == 0    = a
      | k == 0    = b
-     | otherwise = MeanEst ((x*n + y*k) / s) s
+     | otherwise = MeanEst ((x * toDouble n + y * toDouble k) / toDouble s) s
      where s = n + k
    {-# INLINE mergeSamples #-}
 
-instance Calc MeanEst Mean where
+instance Calc (MeanEst w) Mean where
   calc (MeanEst m _) = Mean m
 
--- FIXME: utterly wrong!
-instance Calc MeanEst Count where
-  calc (MeanEst _ n) = Count $ round n
+instance Calc (MeanEst Int) Count where
+  calc (MeanEst _ n) = Count n
 
 
 ----------------------------------------------------------------
 
+{-
 -- FIXME: check estimates for weighted events. Really important!
 
 -- FIXME: we need to guarantee that parameter to the mean estimator is
@@ -377,7 +403,7 @@ instance Calc RobustVariance (Double -> StdDevBiased) where
 -- Eek! Undecidable
 instance Calc RobustVariance (Double -> r) => Calc RobustVariance (Mean -> r) where
   calc est (Mean m) = calc est m
-
+-}
 
 ----------------------------------------------------------------
 

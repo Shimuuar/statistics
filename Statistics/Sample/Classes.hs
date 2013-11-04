@@ -92,6 +92,8 @@ class Sample s where
   mapReduceSample x _ toA fold
     = foldSample (\m -> fold m . toA) x
 
+
+
 ----------------------------------------------------------------
 -- Hidden state
 ----------------------------------------------------------------
