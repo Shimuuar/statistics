@@ -7,7 +7,6 @@
 {-# LANGUAGE EmptyDataDecls        #-}
 {-# LANGUAGE BangPatterns          #-}
 -- |
-
 -- Calculation of many statistics be expressed as fold over data
 -- sample (for example: number of element, mean, any moment,
 -- minimum\/maximum etc.). So it's useful to expose these folds.
@@ -22,8 +21,7 @@
 module Statistics.Sample.Classes (
     -- * Type classes for estimators
     FoldEstimator(..)
-  , NullEstimator(..)
-  , MonoidEst(..)
+  , Monoid(..)
   , Calc(..)
   , Sample(..)
     -- * Hidden state
@@ -39,7 +37,8 @@ module Statistics.Sample.Classes (
 import Control.Arrow       ((***))
 import Control.Applicative (Applicative(..))
 
-import Data.List  (foldl')
+import Data.Monoid (Monoid(..))
+import Data.List   (foldl')
 
 import qualified Data.Foldable         as F
 import qualified Data.Vector           as V
@@ -54,24 +53,15 @@ import qualified Data.Vector.Generic   as G
 -- Estimators
 ----------------------------------------------------------------
 
--- | Estimators which are defined for empty samples.
-class NullEstimator m where
-  nullEstimator :: m
-
 -- | Type class for statistics which could be expresed by fold.
-class NullEstimator m => FoldEstimator m a where
+class Monoid m => FoldEstimator m a where
   -- | Add one element to sample
-  addElement  :: m -> a -> m
-
--- | Statistic accumulators which admit efficient join.
-class NullEstimator m => MonoidEst m where
-  mergeSamples  :: m -> m -> m
+  addElement :: m -> a -> m
 
 -- | Extract statistics from given estimator. Type of statistics is
 --   encoded in return type.
 class Calc m r where
   calc :: m -> r
-
 
 -- | Type class for samples. Since statistics doesn't depend on
 --   element order sample could be folded in any order.
@@ -113,7 +103,7 @@ instance Functor (Estimator a) where
     = Estimator fold x (f . out) none merge
 
 instance Applicative (Estimator a) where
-  pure x = Estimator const x id x const
+  pure x = Estimator (\_ _ -> ()) () (const x) () mappend
   Estimator foldA xA outA noneA mergeA <*> Estimator foldB xB outB noneB mergeB
     = Estimator (\(mA,mB) a -> (foldA mA a, foldB mB a))
                 (xA,xB)
@@ -121,10 +111,10 @@ instance Applicative (Estimator a) where
                 (noneA,noneB)
                 (\(mA,mB) (nA,nB) -> (mergeA mA nA, mergeB mB nB))
 
-estimator :: (FoldEstimator m a, MonoidEst m) => Estimator a m
+estimator :: (FoldEstimator m a) => Estimator a m
 {-# INLINE estimator #-}
 estimator
-  = Estimator addElement nullEstimator id nullEstimator mergeSamples
+  = Estimator addElement mempty id mempty mappend
 
 
 ----------------------------------------------------------------
@@ -137,14 +127,14 @@ accumElements = foldSample addElement
 {-# INLINE accumElements #-}
 
 -- | Evaluate statistics over sample.
-evalStatistics :: (Sample a, FoldEstimator m (Elem a), NullEstimator m) => a -> m
-evalStatistics = foldSample addElement nullEstimator
+evalStatistics :: (Sample a, FoldEstimator m (Elem a)) => a -> m
+evalStatistics = foldSample addElement mempty
 {-# INLINE evalStatistics #-}
 
-mapReduce :: (MonoidEst m, FoldEstimator m a, Sample s)
+mapReduce :: (FoldEstimator m a, Sample s)
           => (Elem s -> a) -> s -> m
 mapReduce f
-  = mapReduceSample nullEstimator mergeSamples f addElement
+  = mapReduceSample mempty mappend f addElement
 {-# INLINE mapReduce #-}
 
 
@@ -190,14 +180,6 @@ sampleToList = foldSample (flip (:)) []
 instance (FoldEstimator a x, FoldEstimator b x) => FoldEstimator (a,b) x where
   addElement (!a,!b) x = (addElement a x, addElement b x)
   {-# INLINE addElement #-}
-
-instance (NullEstimator a, NullEstimator b) => NullEstimator (a,b) where
-  nullEstimator = (nullEstimator, nullEstimator)
-  {-# INLINE nullEstimator #-}
-
-instance (MonoidEst a, MonoidEst b) => MonoidEst (a,b) where
-  mergeSamples (!a1,!b1) (!a2,!b2) = (mergeSamples a1 a2, mergeSamples b1 b2)
-  {-# INLINE mergeSamples #-}
 
 instance (Calc m r, Calc m q) => Calc m (r,q) where
   calc m = (calc m, calc m)

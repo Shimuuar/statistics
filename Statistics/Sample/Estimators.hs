@@ -199,13 +199,11 @@ instance FoldEstimator CountEst a where
   addElement (CountEst x) _ = CountEst (x+1)
   {-# INLINE addElement #-}
 
-instance NullEstimator CountEst where
-  nullEstimator   = CountEst 0
-  {-# INLINE nullEstimator #-}
-
-instance MonoidEst CountEst where
-  mergeSamples (CountEst n) (CountEst m) = CountEst (n+m)
-  {-# INLINE mergeSamples #-}
+instance Monoid CountEst where
+  mempty = CountEst 0
+  mappend (CountEst n) (CountEst m) = CountEst (n+m)
+  {-# INLINE mempty  #-}
+  {-# INLINE mappend #-}
 
 instance Calc CountEst Count where
   calc (CountEst n) = Count n
@@ -219,17 +217,16 @@ instance Calc CountEst Count where
 newtype MinEst a = MinEst (Maybe a)
                 deriving (Show,Eq,Typeable,Data)
 
-instance NullEstimator (MinEst a) where
-  nullEstimator = MinEst Nothing
+instance Ord a => Monoid (MinEst a) where
+  mempty = MinEst Nothing
+  {-# INLINE mempty #-}
+  mappend (MinEst (Just a)) (MinEst (Just b)) = MinEst $ Just $ min a b
+  mappend (MinEst  m      ) (MinEst  n      ) = MinEst $ m <|> n
+  {-# INLINE mappend #-}
 
 instance Ord a => FoldEstimator (MinEst a) a where
   addElement (MinEst m) a = MinEst $ min a <$> m
   {-# INLINE addElement #-}
-
-instance Ord a => MonoidEst (MinEst a) where
-  mergeSamples (MinEst (Just a)) (MinEst (Just b)) = MinEst $ Just $ min a b
-  mergeSamples (MinEst  m      ) (MinEst  n      ) = MinEst $ m <|> n
-  {-# INLINE mergeSamples #-}
 
 -- FIXME:
 -- instance a ~ a' => Calc (MinEst a) (Min a') where
@@ -244,18 +241,16 @@ instance Ord a => MonoidEst (MinEst a) where
 newtype MaxEst a = MaxEst (Maybe a)
                 deriving (Show,Eq,Typeable,Data)
 
-instance NullEstimator (MaxEst a) where
-  nullEstimator = MaxEst Nothing
+instance Ord a => Monoid (MaxEst a) where
+  mempty = MaxEst Nothing
+  {-# INLINE mempty #-}
+  mappend (MaxEst (Just a)) (MaxEst (Just b)) = MaxEst $ Just $ max a b
+  mappend (MaxEst  m      ) (MaxEst  n      ) = MaxEst $ m <|> n
+  {-# INLINE mappend #-}
 
 instance Ord a => FoldEstimator (MaxEst a) a where
   addElement (MaxEst m) a = MaxEst $ max a <$> m
   {-# INLINE addElement #-}
-
-instance Ord a => MonoidEst (MaxEst a) where
-  mergeSamples (MaxEst (Just a)) (MaxEst (Just b)) = MaxEst $ Just $ max a b
-  mergeSamples (MaxEst  m      ) (MaxEst  n      ) = MaxEst $ m <|> n
-  {-# INLINE mergeSamples #-}
-
 -- FIXME:
 {-
 instance a ~ a' => Calc (MaxEst a) (Max a') where
@@ -273,9 +268,12 @@ instance a ~ a' => Calc (MaxEst a) (Max a') where
 --   For empty sample mean is set to 1.
 newtype GeometricMeanEst w = GeometricMeanEst (MeanEst w)
 
-instance Num w => NullEstimator (GeometricMeanEst w) where
-  nullEstimator = GeometricMeanEst nullEstimator
-  {-# INLINE nullEstimator #-}
+instance (Num w, Eq w, ToDouble w) => Monoid (GeometricMeanEst w) where
+  mempty = GeometricMeanEst mempty
+  {-# INLINE mempty #-}
+  mappend (GeometricMeanEst m) (GeometricMeanEst n)
+    = GeometricMeanEst (mappend m n)
+  {-# INLINE mappend #-}
 
 instance (Element a, w ~ Weight a, Eq w, Floating (Value a)
          ) => FoldEstimator (GeometricMeanEst w) a where
@@ -283,10 +281,6 @@ instance (Element a, w ~ Weight a, Eq w, Floating (Value a)
      = GeometricMeanEst $ addElement m $ fmap log $ weightedElt a
   {-# INLINE addElement #-}
 
-instance (Eq w, ToDouble w) => MonoidEst (GeometricMeanEst w) where
-  mergeSamples (GeometricMeanEst m) (GeometricMeanEst n)
-    = GeometricMeanEst (mergeSamples m n)
-  {-# INLINE mergeSamples #-}
 
 instance Calc (GeometricMeanEst Int) Count where
   calc (GeometricMeanEst m) = calc m
@@ -306,17 +300,15 @@ data HarmonicMeanEst = HarmonicMeanEst
                         {-# UNPACK #-} !Double
                         {-# UNPACK #-} !Int
 
-instance NullEstimator HarmonicMeanEst where
-  nullEstimator = HarmonicMeanEst 0 0
-  {-# INLINE nullEstimator #-}
+instance Monoid HarmonicMeanEst where
+  mempty = HarmonicMeanEst 0 0
+  {-# INLINE mempty #-}
+  mappend (HarmonicMeanEst x n) (HarmonicMeanEst y m) = HarmonicMeanEst (x * y) (n + m)
+  {-# INLINE mappend #-}
 
 instance FoldEstimator HarmonicMeanEst Double where
   addElement (HarmonicMeanEst x n) a = HarmonicMeanEst (x + 1 / a) (n + 1)
   {-# INLINE addElement #-}
-
-instance MonoidEst HarmonicMeanEst where
-  mergeSamples (HarmonicMeanEst x n) (HarmonicMeanEst y m) = HarmonicMeanEst (x * y) (n + m)
-  {-# INLINE mergeSamples #-}
 
 instance Calc HarmonicMeanEst Count where
   calc (HarmonicMeanEst _ n) = Count n
@@ -351,17 +343,15 @@ instance (Element a, Eq w, w ~ Weight a) => FoldEstimator (MeanEst w) a where
       m' = m + toDouble w * (toDouble x - m) / toDouble n'
   {-# INLINE addElement #-}
 
-instance Num w => NullEstimator (MeanEst w) where
-  nullEstimator = MeanEst 0 0
-  {-# INLINE nullEstimator #-}
-
-instance (ToDouble w, Eq w) => MonoidEst (MeanEst w) where
-   mergeSamples a@(MeanEst x n) b@(MeanEst y k)
-     | n == 0    = a
-     | k == 0    = b
-     | otherwise = MeanEst ((x * toDouble n + y * toDouble k) / toDouble s) s
-     where s = n + k
-   {-# INLINE mergeSamples #-}
+instance (Num w, Eq w, ToDouble w) => Monoid (MeanEst w) where
+  mempty = MeanEst 0 0
+  {-# INLINE mempty #-}
+  mappend a@(MeanEst x n) b@(MeanEst y k)
+    | n == 0    = a
+    | k == 0    = b
+    | otherwise = MeanEst ((x * toDouble n + y * toDouble k) / toDouble s) s
+    where s = n + k
+  {-# INLINE mappend #-}
 
 instance Calc (MeanEst w) Mean where
   calc (MeanEst m _) = Mean m
@@ -376,11 +366,11 @@ instance Calc (MeanEst Int) Count where
 estRobustVariance :: (Eq (Weight a), Element a) => Value a -> Estimator a b
 estRobustVariance mean = Estimator
   { estFold  = \m a -> addElement m $ sqr . subtract mean <$> weightedElt a
-  , estState = nullEstimator
+  , estState = mempty
     -- FIXME: I need to figure out how to write out function
   , estOut   = undefined
-  , estNull  = isMeanEst nullEstimator
-  , estMerge = mergeSamples
+  , estNull  = isMeanEst mempty
+  , estMerge = mappend
   }
   where
     isMeanEst :: MeanEst w -> MeanEst w
@@ -413,9 +403,9 @@ instance FoldEstimator VarianceEst Double where
       d  = x - m
   {-# INLINE addElement #-}
 
-instance NullEstimator VarianceEst where
-  nullEstimator = VarianceEst 0 0 0
-  {-# INLINE nullEstimator #-}
+instance Monoid VarianceEst where
+  mempty = VarianceEst 0 0 0
+  {-# INLINE mempty #-}
 
 instance Calc VarianceEst Mean where
   calc (VarianceEst _ m _) = Mean m
@@ -447,13 +437,11 @@ instance (FoldEstimator m a, RealFloat a) => FoldEstimator (SkipNaN m) a where
     | otherwise = SkipNaN $ addElement m x
   {-# INLINE addElement #-}
 
-instance NullEstimator m => NullEstimator (SkipNaN m) where
-  nullEstimator = SkipNaN nullEstimator
-  {-# INLINE nullEstimator #-}
-
-instance MonoidEst m => MonoidEst (SkipNaN m) where
-  mergeSamples (SkipNaN m) (SkipNaN n) = SkipNaN (mergeSamples m n)
-  {-# INLINE mergeSamples #-}
+instance Monoid m => Monoid (SkipNaN m) where
+  mempty = SkipNaN mempty
+  {-# INLINE mempty #-}
+  mappend (SkipNaN m) (SkipNaN n) = SkipNaN (mappend m n)
+  {-# INLINE mappend #-}
 
 instance Calc m r => Calc (SkipNaN m) r where
   calc = calc . skipNaN
