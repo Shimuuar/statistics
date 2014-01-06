@@ -40,8 +40,6 @@ module Statistics.Sample.Estimators (
     -- ** Variance
   -- , RobustVariance(..)
   , VarianceEst(..)
-    -- * Transformers
-  , SkipNaN(..)
   ) where
 
 import Control.Applicative
@@ -426,26 +424,3 @@ instance Calc VarianceEst VarianceBiased where
   calc (VarianceEst n _ s)
     | n > 1     = VarianceBiased (s / fromIntegral n)
     | otherwise = VarianceBiased  0
-
-
-
-----------------------------------------------------------------
-
--- | Skip NaN in calculation of statistics
-newtype SkipNaN m = SkipNaN { skipNaN :: m }
-                    deriving (Show,Eq,Typeable)
-
-instance (FoldEstimator m a, RealFloat a) => FoldEstimator (SkipNaN m) a where
-  addElement (SkipNaN m) x
-    | isNaN x   = SkipNaN   m
-    | otherwise = SkipNaN $ addElement m x
-  {-# INLINE addElement #-}
-
-instance Monoid m => Monoid (SkipNaN m) where
-  mempty = SkipNaN mempty
-  {-# INLINE mempty #-}
-  mappend (SkipNaN m) (SkipNaN n) = SkipNaN (mappend m n)
-  {-# INLINE mappend #-}
-
-instance Calc m r => Calc (SkipNaN m) r where
-  calc = calc . skipNaN
