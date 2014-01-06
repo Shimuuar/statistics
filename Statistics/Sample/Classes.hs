@@ -27,11 +27,16 @@ module Statistics.Sample.Classes (
     -- * Hidden state
   , FoldM(..)
   , Fold(..)
+  , extract
+  , duplicate
+  , extractM
+  , duplicateM
+  , estimator
+    -- ** Dictionaries
   , NoDict(..)
   , MonoidDict(..)
   , MergeDict(..)
   , monoidDict
-  , estimator
     -- * Derived combinators
   , accumElements
   , evalStatistics
@@ -100,6 +105,18 @@ data FoldM m a b = forall x. FoldM (x -> a -> m x) !x (x -> m b)
 
 -- | Pure fold with additional dictionaries
 data Fold d a b = forall x. Fold (x -> a -> x) !x (x -> b) (d x)
+
+extract :: Fold d a b -> b
+extract (Fold _ x out _) = out x
+
+duplicate :: Fold d a b -> Fold d a (Fold d a b)
+duplicate (Fold f x0 out d) = Fold f x0 (\x -> Fold f x out d) d
+
+extractM :: FoldM m a b -> m b
+extractM (FoldM _ x out) = out x
+
+duplicateM :: Monad m => FoldM m a b -> FoldM m a (FoldM m a b)
+duplicateM (FoldM f x0 out) = FoldM f x0 (\x -> return $ FoldM f x out)
 
 
 instance Monad m => Functor (FoldM m a) where
