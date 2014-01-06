@@ -51,9 +51,12 @@ import Statistics.Sample.Classes
 
 
 ----------------------------------------------------------------
---
+-- Extra type classes and data types
 ----------------------------------------------------------------
 
+-- | Values which could be converted to @Double@. Unfortunately we
+--   cannot use 'realToFrac' because it doesn't convert NaNs
+--   correctly.
 class Num a => ToDouble a where
   toDouble :: a -> Double
 
@@ -63,6 +66,7 @@ instance ToDouble Int    where
 instance ToDouble Double where
   toDouble = id
   {-# INLINE toDouble #-}
+
 
 
 class (ToDouble (Value a), ToDouble (Weight a)) =>  Element a where
@@ -388,9 +392,9 @@ sqr x = x * x
 
 -- | Online variance estimator
 data VarianceEst = VarianceEst
-               {-# UNPACK #-} !Int
-               {-# UNPACK #-} !Double
-               {-# UNPACK #-} !Double
+               {-# UNPACK #-} !Int     -- Number of elements
+               {-# UNPACK #-} !Double  -- Running mean
+               {-# UNPACK #-} !Double  -- Variance times number of elements
              deriving (Eq,Show,Typeable)
 
 
