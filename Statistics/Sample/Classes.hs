@@ -54,14 +54,14 @@ import qualified Data.Vector.Generic   as G
 -- Estimators
 ----------------------------------------------------------------
 
--- | Type class for statistics which could be expresed by fold.
-class FoldEstimator m a where
-  -- | Add one element to sample
-  addElement  :: m -> a -> m
-
 -- | Estimators which are defined for empty samples.
 class NullEstimator m where
   nullEstimator :: m
+
+-- | Type class for statistics which could be expresed by fold.
+class NullEstimator m => FoldEstimator m a where
+  -- | Add one element to sample
+  addElement  :: m -> a -> m
 
 -- | Statistic accumulators which admit efficient join.
 class NullEstimator m => MonoidEst m where
@@ -107,10 +107,6 @@ data Estimator a b = forall x. Estimator
   , estNull  :: !x              -- ^ Estimator for empty sample
   , estMerge :: x -> x -> x     -- ^ Function to merge two different estimators
   }
-
-instance FoldEstimator (Estimator a b) a where
-  addElement (Estimator fold x out x0 merge) a
-    = Estimator fold (fold x a) out x0 merge
 
 instance Functor (Estimator a) where
   fmap f (Estimator fold x out none merge)
