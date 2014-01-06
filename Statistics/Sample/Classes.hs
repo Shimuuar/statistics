@@ -25,17 +25,23 @@ module Statistics.Sample.Classes (
   , Calc(..)
   , Sample(..)
     -- * Hidden state
-  , Estimator(..)
+  , FoldM(..)
+  , Fold(..)
+  , NoDict(..)
+  , MonoidDict(..)
+  , MergeDict(..)
+  , monoidDict
   , estimator
     -- * Derived combinators
   , accumElements
   , evalStatistics
-  , mapReduceEst
+  -- , mapReduceEst
   , mapReduce
   ) where
 
 import Control.Arrow       ((***))
 import Control.Applicative (Applicative(..))
+import Control.Monad       (liftM)
 
 import Data.Monoid (Monoid(..))
 import Data.List   (foldl')
@@ -89,32 +95,76 @@ class Sample s where
 -- Hidden state
 ----------------------------------------------------------------
 
--- | For estimators
-data Estimator a b = forall x. Estimator
-  { estFold  :: x -> a -> x     -- ^ Fold function
-  , estState :: !x              -- ^ Current content of accumulator
-  , estOut   :: x -> b          -- ^ Convert state to the output
-  , estNull  :: !x              -- ^ Estimator for empty sample
-  , estMerge :: x -> x -> x     -- ^ Function to merge two different estimators
-  }
+-- | Monadic fold.
+data FoldM m a b = forall x. FoldM (x -> a -> m x) !x (x -> m b)
 
-instance Functor (Estimator a) where
-  fmap f (Estimator fold x out none merge)
-    = Estimator fold x (f . out) none merge
+-- | Pure fold with additional dictionaries
+data Fold d a b = forall x. Fold (x -> a -> x) !x (x -> b) (d x)
 
-instance Applicative (Estimator a) where
-  pure x = Estimator (\_ _ -> ()) () (const x) () mappend
-  Estimator foldA xA outA noneA mergeA <*> Estimator foldB xB outB noneB mergeB
-    = Estimator (\(mA,mB) a -> (foldA mA a, foldB mB a))
-                (xA,xB)
-                (\(mA,mB) -> outA mA $ outB mB)
-                (noneA,noneB)
-                (\(mA,mB) (nA,nB) -> (mergeA mA nA, mergeB mB nB))
 
-estimator :: (FoldEstimator m a) => Estimator a m
+instance Monad m => Functor (FoldM m a) where
+  fmap f (FoldM step x out) = FoldM step x (liftM f . out)
+
+instance Monad m => Applicative (FoldM m a) where
+  pure x = FoldM (\_ _ -> return ()) () (\_ -> return x)
+  FoldM stepA xA0 outA <*> FoldM stepB xB0 outB
+    = FoldM step (xA0,xB0) out
+    where
+      step (xA,xB) a = do xA' <- stepA xA a
+                          xB' <- stepB xB a
+                          return (xA',xB')
+      out (xA,xB) = do f <- outA xA
+                       g <- outB xB
+                       return $ f g
+
+instance Functor (Fold d a) where
+  fmap f (Fold step x out d) = Fold step x (f . out) d
+
+instance MergeDict d => Applicative (Fold d a) where
+  pure x = Fold (\_ _ -> ()) () (const x) unitDict
+  Fold stepA xA0 outA dA <*> Fold stepB xB0 outB dB
+    = Fold step (xA0,xB0) out (mergeDict dA dB)
+    where
+      step (xA,xB) a = let xA' = stepA xA a
+                           xB' = stepB xB a
+                       in (xA',xB')
+      out (xA,xB) = outA xA $ outB xB
+
+estimator :: (FoldEstimator m a) => Fold (MonoidDict NoDict) a m
 {-# INLINE estimator #-}
 estimator
-  = Estimator addElement mempty id mempty mappend
+  = Fold addElement mempty id (monoidDict NoDict)
+
+
+
+----------------------------------------------------------------
+-- Explicit dictionaries
+----------------------------------------------------------------
+
+-- | Explicit type class dictionaries
+data NoDict x = NoDict
+
+-- | Dictionary for monoids
+data MonoidDict d x = MonoidDict x (x -> x -> x) (d x)
+
+monoidDict :: Monoid x => d x -> MonoidDict d x
+monoidDict = MonoidDict mempty mappend
+
+-- | Type class for dictionaries which is necessary to define
+--   'Applicative' instance for 'Fold'
+class MergeDict d where
+  unitDict   :: d ()
+  mergeDict  :: d a -> d b -> d (a,b)
+
+instance MergeDict NoDict where
+  unitDict      = NoDict
+  mergeDict _ _ = NoDict
+
+instance MergeDict d => MergeDict (MonoidDict d) where
+  unitDict = MonoidDict mempty mappend unitDict
+  mergeDict (MonoidDict oA fA dA) (MonoidDict oB fB dB)
+   = MonoidDict (oA,oB) (\(a,b) (c,d) -> (fA a c, fB b d)) (mergeDict dA dB)
+
 
 
 ----------------------------------------------------------------
@@ -138,13 +188,13 @@ mapReduce f
 {-# INLINE mapReduce #-}
 
 
-
+{-
 mapReduceEst :: (Sample s)
              => Estimator a b -> (Elem s -> a) -> s -> b
 mapReduceEst (Estimator fold _ out x0 merge) f s =
 -- FIXME: I need somehow pass dictionary for estimator as well!
   out $ mapReduceSample x0 merge f fold s
-
+-}
 
 
 

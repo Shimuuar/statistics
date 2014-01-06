@@ -362,7 +362,7 @@ instance Calc (MeanEst Int) Count where
 
 ----------------------------------------------------------------
 
-
+{-
 estRobustVariance :: (Eq (Weight a), Element a) => Value a -> Estimator a b
 estRobustVariance mean = Estimator
   { estFold  = \m a -> addElement m $ sqr . subtract mean <$> weightedElt a
@@ -379,7 +379,7 @@ estRobustVariance mean = Estimator
 sqr :: Num a => a -> a
 sqr x = x * x
 {-# INLINE sqr #-}
-
+-}
 
 
 ----------------------------------------------------------------
