@@ -1,4 +1,33 @@
- Changes in 0.10.2.0
+
+Changes in 0.10.5.2
+
+  * histogram correctly chooses range when all elements in the sample are same
+    (bug #57)
+
+
+Changes in 0.10.5.1
+
+  * Bug fix for S.Distributions.Normal.standard introduced in 0.10.5.0 (Bug #56)
+
+
+Changes in 0.10.5.0
+
+  * Enthropy type class for distributions is added.
+
+  * Probability and probability density of distribution is given in
+    log domain too.
+
+Changes in 0.10.4.0
+
+  * Support for versions of GHC older than 7.2 is discontinued.
+
+  * All datatypes now support 'Data.Binary' and 'GHC.Generics'.
+
+Changes in 0.10.3.0
+
+  * Bug fixes
+
+Changes in 0.10.2.0
 
   * Bugs in DCT and IDCT are fixed.
 
