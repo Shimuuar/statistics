@@ -21,6 +21,8 @@ module Statistics.Resampling
     , jackknifeStdDev
     , resample
     , estimate
+      -- * New
+    , jackknifeMonoidal
     ) where
 
 import Control.Concurrent (forkIO, newChan, readChan, writeChan)
@@ -28,6 +30,7 @@ import Control.Monad (forM_, liftM, replicateM_)
 import Control.Monad.Primitive (PrimMonad, PrimState)
 import Data.Binary (Binary(..))
 import Data.Data (Data, Typeable)
+import Data.Monoid (Monoid(..))
 import Data.Vector.Algorithms.Intro (sort)
 import Data.Vector.Binary ()
 import Data.Vector.Generic (unsafeFreeze)
@@ -42,6 +45,8 @@ import System.Random.MWC (Gen, initialize, uniform, uniformVector)
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Unboxed.Mutable as MU
+import Data.Folds.Class (Accumulator(..))
+
 
 -- | A resample drawn randomly, with replacement, from a set of data
 -- points.  Distinct from a normal array to make it harder for your
@@ -171,3 +176,12 @@ dropAt n v = U.slice 0 n v U.++ U.slice (n+1) (U.length v - n - 1) v
 singletonErr :: String -> a
 singletonErr func = error $
                     "Statistics.Resampling." ++ func ++ ": singleton input"
+
+
+-- | Monoidal variant of jackknife.
+jackknifeMonoidal :: (Accumulator m a, G.Vector v a, G.Vector v m)
+                  => v a -> v m
+{-# INLINE jackknifeMonoidal #-}
+jackknifeMonoidal xs
+  = G.zipWith mappend (G.scanl snoc mempty $ G.init xs)
+                      (G.scanr cons mempty $ G.tail xs)
