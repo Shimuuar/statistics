@@ -71,6 +71,28 @@ instance Fractional a => Monoid (WelfordMean a) where
       k' = fromIntegral k
 
 
+-- | Fast variance of sample which require single pass over data
+data FastVariance = FastVariance
+  { fastVarCount :: {-# UNPACK #-} !Int
+  , fastVarMean  :: {-# UNPACK #-} !Double
+  , fastVarSumSq :: {-# UNPACK #-} !Double
+  }
+
+instance Monoid FastVariance where
+  mempty = FastVariance 0 0 0
+  mappend (FastVariance n1 m1 s1) (FastVariance n2 m2 s2)
+    = FastVariance n m (s1 + s2)
+    where
+      WelfordMean n m = WelfordMean n1 m1 <> WelfordMean n2 m2
+
+instance Accumulator FastVariance Double where
+  snoc (FastVariance n m s) x
+    = FastVariance (n+1) m' s'
+    where
+      m' = m + d / fromIntegral n
+      s' = s + d * (x - m')
+      d  = x - m
+
 
 ----------------------------------------------------------------
 -- Orphans
