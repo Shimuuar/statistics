@@ -1,9 +1,12 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE BangPatterns          #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 module Statistics.Sample.Accumulators (
+    -- * Generic API and type classes
+    calculate
     -- * Accumulators
-    Count(..)
+  , Count(..)
   , Binomial(..)
   , WelfordMean(..)
     -- ** Summation
@@ -12,6 +15,18 @@ module Statistics.Sample.Accumulators (
 import Data.Monoid
 import Data.Folds
 import Numeric.Sum hiding (sum)
+
+
+----------------------------------------------------------------
+-- Generic API and type classes
+----------------------------------------------------------------
+
+-- | Calculate statistics from sample
+calculate :: (Sample s, Accumulator m (Element s)) => (m -> a) -> s -> a
+calculate f src = f $ runFold (fromAcc +<< toSource src)
+{-# INLINE calculate #-}
+
+
 
 ----------------------------------------------------------------
 -- Accumulators
