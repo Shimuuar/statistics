@@ -5,6 +5,12 @@
 module Statistics.Sample.Accumulators (
     -- * Generic API and type classes
     calculate
+  , HasCount(..)
+  , HasMean(..)
+  , HasVariance(..)
+  , HasMLVariance(..)
+  , HasStdDev(..)
+  , HasMLStdDev(..)
     -- * Accumulators
   , Count(..)
   , Binomial(..)
@@ -25,6 +31,24 @@ import Numeric.Sum hiding (sum)
 calculate :: (Sample s, Accumulator m (Element s)) => (m -> a) -> s -> a
 calculate f src = f $ runFold (fromAcc +<< toSource src)
 {-# INLINE calculate #-}
+
+class HasCount a where
+  calcCount :: a -> Int
+
+class HasMean a where
+  calcMean :: a -> Double
+
+class HasVariance a where
+  calcVariance :: a -> Double
+
+class HasMLVariance a where
+  calcMLVariance :: a -> Double
+
+class HasStdDev a where
+  calcStdDev :: a -> Double
+
+class HasMLStdDev a where
+  calcMLStdDev :: a -> Double
 
 
 
@@ -70,6 +94,11 @@ instance Fractional a => Monoid (WelfordMean a) where
       n' = fromIntegral n
       k' = fromIntegral k
 
+instance HasCount (WelfordMean a) where
+  calcCount = welfordCount
+instance HasMean (WelfordMean Double) where
+  calcMean  = welfordMean
+
 
 -- | Fast variance of sample which require single pass over data
 data FastVariance = FastVariance
@@ -92,6 +121,31 @@ instance Accumulator FastVariance Double where
       m' = m + d / fromIntegral n
       s' = s + d * (x - m')
       d  = x - m
+
+instance HasCount FastVariance where
+  calcCount = fastVarCount
+
+instance HasMean FastVariance where
+  calcMean = fastVarMean
+
+instance HasVariance FastVariance where
+  calcVariance fv
+    | n > 1     = fastVarSumSq fv / fromIntegral (n - 1)
+    | otherwise = 0
+    where
+      n = fastVarCount fv
+
+instance HasMLVariance FastVariance where
+  calcMLVariance fv
+    | n > 1     = fastVarSumSq fv / fromIntegral n
+    | otherwise = 0
+    where
+      n = fastVarCount fv
+
+instance HasStdDev FastVariance where
+  calcStdDev = sqrt . calcVariance
+instance HasMLStdDev FastVariance where
+  calcMLStdDev = sqrt . calcMLVariance
 
 
 ----------------------------------------------------------------
