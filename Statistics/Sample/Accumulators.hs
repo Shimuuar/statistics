@@ -18,10 +18,14 @@ module Statistics.Sample.Accumulators (
   , WelfordMean(..)
   , RobustVar(..)
   , robustVariance
+  , centralMoment
+  , skewness
+  , kurtosis
     -- ** Summation
   ) where
 
 import Control.Arrow
+import Control.Applicative
 import Data.Monoid
 import Data.Folds
 import Data.Folds.MultiPass
@@ -191,6 +195,30 @@ instance HasStdDev RobustVar where
 instance HasMLStdDev RobustVar where
   calcMLStdDev = sqrt . calcMLVariance
 
+
+centralMoment :: Int -> MFold Double Double
+centralMoment n = do
+  m <- welfordMean <$> mfold fromAcc
+  mfold (centralMomentMean n m)
+
+centralMomentMean :: Int -> Double -> Fold Double Double
+centralMomentMean n m =
+  welfordMean <$> (fromAcc +<< (arr (\x -> let d = x - m in d^n) :: Pipette Double Double))
+
+skewness :: MFold Double Double
+skewness = do
+  m <- welfordMean <$> mfold fromAcc
+  mfold ((\c2 c3 -> c3 * c2**(-1.5))
+         <$> centralMomentMean 2 m
+         <*> centralMomentMean 3 m)
+-- FIXME: we have two counter for sample size. Wasteful
+
+kurtosis :: MFold Double Double
+kurtosis = do
+  m <- welfordMean <$> mfold fromAcc
+  mfold ((\c2 c4 -> c4 / (c2*c2) - 3)
+         <$> centralMomentMean 2 m
+         <*> centralMomentMean 4 m)
 
 
 
