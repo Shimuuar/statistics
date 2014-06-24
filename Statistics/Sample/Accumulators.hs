@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeFamilies          #-}
 module Statistics.Sample.Accumulators (
     -- * Generic API and type classes
     calculate
@@ -15,11 +16,15 @@ module Statistics.Sample.Accumulators (
   , Count(..)
   , Binomial(..)
   , WelfordMean(..)
+  , RobustVar(..)
+  , robustVariance
     -- ** Summation
   ) where
 
+import Control.Arrow
 import Data.Monoid
 import Data.Folds
+import Data.Folds.MultiPass
 import Numeric.Sum hiding (sum)
 
 
@@ -79,7 +84,7 @@ data WelfordMean a = WelfordMean
   , welfordMean  :: !a
   }
 
-instance Fractional a => Accumulator (WelfordMean a) a where
+instance (Fractional a, a~a') => Accumulator (WelfordMean a) a' where
   snoc (WelfordMean n m) x = WelfordMean n' m'
     where
       m' = m + (x - m) / fromIntegral n'
@@ -146,6 +151,47 @@ instance HasStdDev FastVariance where
   calcStdDev = sqrt . calcVariance
 instance HasMLStdDev FastVariance where
   calcMLStdDev = sqrt . calcMLVariance
+
+
+-- | Robust variance
+data RobustVar = RobustVar
+  { robustvarCount :: {-# UNPACK #-} !Int
+  , robustvarMean  :: {-# UNPACK #-} !Double
+  , robustvarSumSq :: {-# UNPACK #-} !Double
+  }
+
+robustVariance :: MFold Double RobustVar
+robustVariance = do
+  WelfordMean n m <- mfold fromAcc
+  WelfordMean _ s <- mfold (fromAcc +<< (arr (\x -> let d = x - m in d*d) :: Pipette Double Double))
+  return $ RobustVar n m s
+
+instance HasCount RobustVar where
+  calcCount = robustvarCount
+
+instance HasMean RobustVar where
+  calcMean = robustvarMean
+
+instance HasVariance RobustVar where
+  calcVariance fv
+    | n > 1     = robustvarSumSq fv / fromIntegral (n - 1)
+    | otherwise = 0
+    where
+      n = robustvarCount fv
+
+instance HasMLVariance RobustVar where
+  calcMLVariance fv
+    | n > 1     = robustvarSumSq fv / fromIntegral n
+    | otherwise = 0
+    where
+      n = robustvarCount fv
+
+instance HasStdDev RobustVar where
+  calcStdDev = sqrt . calcVariance
+instance HasMLStdDev RobustVar where
+  calcMLStdDev = sqrt . calcMLVariance
+
+
 
 
 ----------------------------------------------------------------
