@@ -15,6 +15,8 @@ module Statistics.Sample.Accumulators (
     -- * Accumulators
   , Count(..)
   , Binomial(..)
+  , Mean(..)
+  , mean
   , WelfordMean(..)
   , RobustVar(..)
   , robustVariance
@@ -24,7 +26,6 @@ module Statistics.Sample.Accumulators (
     -- ** Summation
   ) where
 
-import Control.Arrow
 import Control.Applicative
 import Data.Monoid
 import Data.Folds
@@ -80,6 +81,28 @@ instance Accumulator Binomial Bool where
   snoc (Binomial n k) f = Binomial (n+1) (if f then k + 1 else k)
   cons = flip snoc
 
+
+data Mean = Mean
+  { stableCount :: {-# UNPACK #-} !Int
+  , stableSum   :: {-# UNPACK #-} !KBNSum
+  }
+
+instance Accumulator Mean Double where
+  snoc (Mean n s) x = Mean (n+1) (snoc s x)
+  cons = flip snoc
+
+instance HasCount Mean where
+  calcCount = stableCount
+instance HasMean Mean where
+  calcMean m = kbn (stableSum m) / fromIntegral (stableCount m)
+
+instance Monoid Mean where
+  mempty = Mean 0 mempty
+  Mean n1 m1 `mappend` Mean n2 m2 = Mean (n1+n2) (m1 <> m2)
+
+
+mean :: Fold Double Double
+mean = (calcMean :: Mean -> Double) <$> fromAcc
 
 
 -- | Welford's mean
@@ -198,16 +221,16 @@ instance HasMLStdDev RobustVar where
 
 centralMoment :: Int -> MFold Double Double
 centralMoment n = do
-  m <- welfordMean <$> mfold fromAcc
+  m <- mfold mean
   mfold (centralMomentMean n m)
 
 centralMomentMean :: Int -> Double -> Fold Double Double
 centralMomentMean n m =
-  welfordMean <$> (fromAcc +<< pipe (\x -> let d = x - m in d^n))
+  mean +<< pipe (\x -> let d = x - m in d^n)
 
 skewness :: MFold Double Double
 skewness = do
-  m <- welfordMean <$> mfold fromAcc
+  m <- mfold mean
   mfold ((\c2 c3 -> c3 * c2**(-1.5))
          <$> centralMomentMean 2 m
          <*> centralMomentMean 3 m)
