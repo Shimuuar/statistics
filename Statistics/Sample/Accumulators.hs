@@ -167,7 +167,7 @@ data RobustVar = RobustVar
 robustVariance :: MFold Double RobustVar
 robustVariance = do
   WelfordMean n m <- mfold fromAcc
-  WelfordMean _ s <- mfold (fromAcc +<< (arr (\x -> let d = x - m in d*d) :: Pipette Double Double))
+  WelfordMean _ s <- mfold (fromAcc +<< pipe (\x -> let d = x - m in d*d))
   return $ RobustVar n m s
 
 instance HasCount RobustVar where
@@ -203,7 +203,7 @@ centralMoment n = do
 
 centralMomentMean :: Int -> Double -> Fold Double Double
 centralMomentMean n m =
-  welfordMean <$> (fromAcc +<< (arr (\x -> let d = x - m in d^n) :: Pipette Double Double))
+  welfordMean <$> (fromAcc +<< pipe (\x -> let d = x - m in d^n))
 
 skewness :: MFold Double Double
 skewness = do
