@@ -19,6 +19,7 @@ module Statistics.Sample.Accumulators (
   , Mean(..)
   , calcMean
   , WelfordMean(..)
+  , calcWelfordMean
   , RobustVar(..)
   , calcRobustVariance
   , calcCentralMoment
@@ -110,9 +111,13 @@ calcMean = (getMean :: Mean -> Double) <$> fromAcc
 
 -- | Welford's mean
 data WelfordMean a = WelfordMean
-  { welfordCount :: {-# UNPACK #-} !Int
-  , welfordMean  :: !a
+  { getWelfordCount :: {-# UNPACK #-} !Int
+  , getWelfordMean  :: !a
   }
+
+calcWelfordMean :: Fractional a => Fold a (WelfordMean a)
+calcWelfordMean = fromAcc
+{-# INLINE calcWelfordMean #-}
 
 instance (Fractional a, a~a') => Accumulator (WelfordMean a) a' where
   snoc (WelfordMean n m) x = WelfordMean n' m'
@@ -130,9 +135,9 @@ instance Fractional a => Monoid (WelfordMean a) where
       k' = fromIntegral k
 
 instance HasCount (WelfordMean a) where
-  getCount = welfordCount
+  getCount = getWelfordCount
 instance HasMean (WelfordMean Double) where
-  getMean  = welfordMean
+  getMean  = getWelfordMean
 
 
 -- | Fast variance of sample which require single pass over data.
@@ -224,9 +229,12 @@ instance HasMLStdDev RobustVar where
 
 -- | Calculate N-th central moment of sample
 calcCentralMoment :: Int -> MFold Double Double
-calcCentralMoment n = do
-  m <- mfold calcMean
-  mfold (calcCentralMomentMean n m)
+calcCentralMoment n
+  | n <  0    = error "Statistics.Sample.Accumulators.calcCentralMoment: negative input"
+  | n == 0    = pure 1
+  | n == 1    = pure 0
+  | otherwise = do m <- mfold calcMean
+                   mfold (calcCentralMomentMean n m)
 
 -- | Calculate N-th central moment of sample. It takes estimate of
 --   mean as parameter.
@@ -246,7 +254,7 @@ calcSkewness = do
 -- | Calculate kurtosis of sample
 calcKurtosis :: MFold Double Double
 calcKurtosis = do
-  m <- welfordMean <$> mfold fromAcc
+  m <- getWelfordMean <$> mfold fromAcc
   mfold ((\c2 c4 -> c4 / (c2*c2) - 3)
          <$> calcCentralMomentMean 2 m
          <*> calcCentralMomentMean 4 m)

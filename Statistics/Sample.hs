@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 -- |
 -- Module    : Statistics.Sample
@@ -23,24 +24,21 @@ module Statistics.Sample
     , mean
     , welfordMean
     , meanWeighted
-    , harmonicMean
-    , geometricMean
+    -- , harmonicMean
+    -- , geometricMean
 
     -- * Statistics of dispersion
     -- $variance
 
     -- ** Functions over central moments
     , centralMoment
-    , centralMoments
     , skewness
     , kurtosis
 
     -- ** Two-pass functions (numerically robust)
     -- $robust
     , variance
-    , varianceUnbiased
-    , meanVariance
-    , meanVarianceUnb
+    , varianceML
     , stdDev
     , varianceWeighted
 
@@ -56,10 +54,12 @@ module Statistics.Sample
 
 import Statistics.Function (minMax)
 import Statistics.Sample.Internal (robustSumVar, sum)
-import Statistics.Types (Sample,WeightedSample)
+import Statistics.Types (WeightedSample)
+import Statistics.Sample.Accumulators
 import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
+import Data.Folds
 
 -- Operator ^ will be overriden
 import Prelude hiding ((^), sum)
@@ -74,25 +74,21 @@ range s = hi - lo
 -- | /O(n)/ Arithmetic mean.  This uses Kahan-Babuška-Neumaier
 -- summation, so is more accurate than 'welfordMean' unless the input
 -- values are very large.
-mean :: (G.Vector v Double) => v Double -> Double
-mean xs = sum xs / fromIntegral (G.length xs)
-{-# SPECIALIZE mean :: U.Vector Double -> Double #-}
-{-# SPECIALIZE mean :: V.Vector Double -> Double #-}
+mean :: (Sample s, Element s ~ Double) => s -> Double
+mean xs = runFold (calcMean +<< toSource xs)
+{-# INLINE mean #-}
+-- FIXME: We don't need to calculate length for vectors.
+
 
 -- | /O(n)/ Arithmetic mean.  This uses Welford's algorithm to provide
 -- numerical stability, using a single pass over the sample data.
 --
 -- Compared to 'mean', this loses a surprising amount of precision
 -- unless the inputs are very large.
-welfordMean :: (G.Vector v Double) => v Double -> Double
-welfordMean = fini . G.foldl' go (T 0 0)
-  where
-    fini (T a _) = a
-    go (T m n) x = T m' n'
-        where m' = m + (x - m) / fromIntegral n'
-              n' = n + 1
-{-# SPECIALIZE welfordMean :: U.Vector Double -> Double #-}
-{-# SPECIALIZE welfordMean :: V.Vector Double -> Double #-}
+welfordMean :: (Sample s, Fractional (Element s)) => s -> Element s
+welfordMean xs = getWelfordMean $ runFold (calcWelfordMean +<< toSource xs)
+{-# INLINE welfordMean #-}
+
 
 -- | /O(n)/ Arithmetic mean for weighted sample. It uses a single-pass
 -- algorithm analogous to the one used by 'welfordMean'.
@@ -106,6 +102,7 @@ meanWeighted = fini . G.foldl' go (V 0 0)
                 w' = w + xw
 {-# INLINE meanWeighted #-}
 
+{-
 -- | /O(n)/ Harmonic mean.  This algorithm performs a single pass over
 -- the sample.
 harmonicMean :: (G.Vector v Double) => v Double -> Double
@@ -119,6 +116,7 @@ harmonicMean = fini . G.foldl' go (T 0 0)
 geometricMean :: (G.Vector v Double) => v Double -> Double
 geometricMean = exp . mean . G.map log
 {-# INLINE geometricMean #-}
+-}
 
 -- | Compute the /k/th central moment of a sample.  The central moment
 -- is also known as the moment about the mean.
@@ -128,34 +126,10 @@ geometricMean = exp . mean . G.map log
 --
 -- For samples containing many values very close to the mean, this
 -- function is subject to inaccuracy due to catastrophic cancellation.
-centralMoment :: (G.Vector v Double) => Int -> v Double -> Double
+centralMoment :: (Sample s, Element s ~ Double) => Int -> s -> Double
 centralMoment a xs
-    | a < 0  = error "Statistics.Sample.centralMoment: negative input"
-    | a == 0 = 1
-    | a == 1 = 0
-    | otherwise = sum (G.map go xs) / fromIntegral (G.length xs)
-  where
-    go x = (x-m) ^ a
-    m    = mean xs
+  = runFold (calcCentralMoment a +<< toSource xs)
 {-# INLINE centralMoment #-}
-
--- | Compute the /k/th and /j/th central moments of a sample.
---
--- This function performs two passes over the sample, so is not subject
--- to stream fusion.
---
--- For samples containing many values very close to the mean, this
--- function is subject to inaccuracy due to catastrophic cancellation.
-centralMoments :: (G.Vector v Double) => Int -> Int -> v Double -> (Double, Double)
-centralMoments a b xs
-    | a < 2 || b < 2 = (centralMoment a xs , centralMoment b xs)
-    | otherwise      = fini . G.foldl' go (V 0 0) $ xs
-  where go (V i j) x = V (i + d^a) (j + d^b)
-            where d  = x - m
-        fini (V i j) = (i / n , j / n)
-        m            = mean xs
-        n            = fromIntegral (G.length xs)
-{-# INLINE centralMoments #-}
 
 -- | Compute the skewness of a sample. This is a measure of the
 -- asymmetry of its distribution.
@@ -179,9 +153,8 @@ centralMoments a b xs
 --
 -- For samples containing many values very close to the mean, this
 -- function is subject to inaccuracy due to catastrophic cancellation.
-skewness :: (G.Vector v Double) => v Double -> Double
-skewness xs = c3 * c2 ** (-1.5)
-    where (c3 , c2) = centralMoments 3 2 xs
+skewness :: (Sample s, Element s ~ Double) => s -> Double
+skewness xs = runFold (calcSkewness +<< toSource xs)
 {-# INLINE skewness #-}
 
 -- | Compute the excess kurtosis of a sample.  This is a measure of
@@ -197,9 +170,8 @@ skewness xs = c3 * c2 ** (-1.5)
 --
 -- For samples containing many values very close to the mean, this
 -- function is subject to inaccuracy due to catastrophic cancellation.
-kurtosis :: (G.Vector v Double) => v Double -> Double
-kurtosis xs = c4 / (c2 * c2) - 3
-    where (c4 , c2) = centralMoments 4 2 xs
+kurtosis :: (Sample s, Element s ~ Double) => s -> Double
+kurtosis xs = runFold (calcKurtosis +<< toSource xs)
 {-# INLINE kurtosis #-}
 
 -- $variance
@@ -218,55 +190,23 @@ kurtosis xs = c4 / (c2 * c2) - 3
 
 data V = V {-# UNPACK #-} !Double {-# UNPACK #-} !Double
 
--- | Maximum likelihood estimate of a sample's variance.  Also known
--- as the population variance, where the denominator is /n/.
-variance :: (G.Vector v Double) => v Double -> Double
-variance samp
-    | n > 1     = robustSumVar (mean samp) samp / fromIntegral n
-    | otherwise = 0
-    where
-      n = G.length samp
+-- | Unbiased estimate of a sample's variance. Also known
+--   as the sample variance, where the denominator is /n-1/.
+variance :: (Sample s, Element s ~ Double) => s -> Double
+variance xs = getVariance $ runFold (calcRobustVariance +<< toSource xs)
 {-# INLINE variance #-}
-
--- | Unbiased estimate of a sample's variance.  Also known as the
--- sample variance, where the denominator is /n/-1.
-varianceUnbiased :: (G.Vector v Double) => v Double -> Double
-varianceUnbiased samp
-    | n > 1     = robustSumVar (mean samp) samp / fromIntegral (n-1)
-    | otherwise = 0
-    where
-      n = G.length samp
-{-# INLINE varianceUnbiased #-}
-
--- | Calculate mean and maximum likelihood estimate of variance. This
--- function should be used if both mean and variance are required
--- since it will calculate mean only once.
-meanVariance ::  (G.Vector v Double) => v Double -> (Double,Double)
-meanVariance samp
-  | n > 1     = (m, robustSumVar m samp / fromIntegral n)
-  | otherwise = (m, 0)
-    where
-      n = G.length samp
-      m = mean samp
-{-# INLINE meanVariance #-}
-
--- | Calculate mean and unbiased estimate of variance. This
--- function should be used if both mean and variance are required
--- since it will calculate mean only once.
-meanVarianceUnb :: (G.Vector v Double) => v Double -> (Double,Double)
-meanVarianceUnb samp
-  | n > 1     = (m, robustSumVar m samp / fromIntegral (n-1))
-  | otherwise = (m, 0)
-    where
-      n = G.length samp
-      m = mean samp
-{-# INLINE meanVarianceUnb #-}
 
 -- | Standard deviation.  This is simply the square root of the
 -- unbiased estimate of the variance.
-stdDev :: (G.Vector v Double) => v Double -> Double
-stdDev = sqrt . varianceUnbiased
+stdDev :: (Sample s, Element s ~ Double) => s -> Double
+stdDev = sqrt . variance
 {-# INLINE stdDev #-}
+
+-- | Maximum likelihood estimate of a sample's variance. Also known as the
+--   population variance, where the denominator is /n/.
+varianceML :: (Sample s, Element s ~ Double) => s -> Double
+varianceML xs = getVariance $ runFold (calcRobustVariance +<< toSource xs)
+{-# INLINE varianceML #-}
 
 robustSumVarWeighted :: (G.Vector v (Double,Double)) => v (Double,Double) -> V
 robustSumVarWeighted samp = G.foldl' go (V 0 0) samp
@@ -335,9 +275,6 @@ fastStdDev = sqrt . fastVariance
 x ^ 1 = x
 x ^ n = x * (x ^ (n-1))
 {-# INLINE (^) #-}
-
--- don't support polymorphism, as we can't get unboxed returns if we use it.
-data T = T {-# UNPACK #-}!Double {-# UNPACK #-}!Int
 
 data T1 = T1 {-# UNPACK #-}!Int {-# UNPACK #-}!Double {-# UNPACK #-}!Double
 
