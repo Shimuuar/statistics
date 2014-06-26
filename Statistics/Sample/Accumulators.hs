@@ -6,6 +6,7 @@
 module Statistics.Sample.Accumulators (
     -- * Generic API and type classes
     calculate
+    -- ** Type classes for statistics
   , HasCount(..)
   , HasMean(..)
   , HasVariance(..)
@@ -13,17 +14,18 @@ module Statistics.Sample.Accumulators (
   , HasStdDev(..)
   , HasMLStdDev(..)
     -- * Accumulators
-  , Count(..)
+  , Count(Count)
   , Binomial(..)
   , Mean(..)
-  , mean
+  , calcMean
   , WelfordMean(..)
   , RobustVar(..)
-  , robustVariance
-  , centralMoment
-  , skewness
-  , kurtosis
+  , calcRobustVariance
+  , calcCentralMoment
+  , calcSkewness
+  , calcKurtosis
     -- ** Summation
+  , KBNSum(..)
   ) where
 
 import Control.Applicative
@@ -43,22 +45,22 @@ calculate f src = f $ runFold (fromAcc +<< toSource src)
 {-# INLINE calculate #-}
 
 class HasCount a where
-  calcCount :: a -> Int
+  getCount :: a -> Int
 
 class HasMean a where
-  calcMean :: a -> Double
+  getMean :: a -> Double
 
 class HasVariance a where
-  calcVariance :: a -> Double
+  getVariance :: a -> Double
 
 class HasMLVariance a where
-  calcMLVariance :: a -> Double
+  getMLVariance :: a -> Double
 
 class HasStdDev a where
-  calcStdDev :: a -> Double
+  getStdDev :: a -> Double
 
 class HasMLStdDev a where
-  calcMLStdDev :: a -> Double
+  getMLStdDev :: a -> Double
 
 
 
@@ -82,6 +84,7 @@ instance Accumulator Binomial Bool where
   cons = flip snoc
 
 
+-- | Numerically stable accumulator fro mean
 data Mean = Mean
   { stableCount :: {-# UNPACK #-} !Int
   , stableSum   :: {-# UNPACK #-} !KBNSum
@@ -92,17 +95,17 @@ instance Accumulator Mean Double where
   cons = flip snoc
 
 instance HasCount Mean where
-  calcCount = stableCount
+  getCount = stableCount
 instance HasMean Mean where
-  calcMean m = kbn (stableSum m) / fromIntegral (stableCount m)
+  getMean m = kbn (stableSum m) / fromIntegral (stableCount m)
 
 instance Monoid Mean where
   mempty = Mean 0 mempty
   Mean n1 m1 `mappend` Mean n2 m2 = Mean (n1+n2) (m1 <> m2)
 
-
-mean :: Fold Double Double
-mean = (calcMean :: Mean -> Double) <$> fromAcc
+-- | Evaluate mean using fold
+calcMean :: Fold Double Double
+calcMean = (getMean :: Mean -> Double) <$> fromAcc
 
 
 -- | Welford's mean
@@ -127,12 +130,12 @@ instance Fractional a => Monoid (WelfordMean a) where
       k' = fromIntegral k
 
 instance HasCount (WelfordMean a) where
-  calcCount = welfordCount
+  getCount = welfordCount
 instance HasMean (WelfordMean Double) where
-  calcMean  = welfordMean
+  getMean  = welfordMean
 
 
--- | Fast variance of sample which require single pass over data
+-- | Fast variance of sample which require single pass over data.
 data FastVariance = FastVariance
   { fastVarCount :: {-# UNPACK #-} !Int
   , fastVarMean  :: {-# UNPACK #-} !Double
@@ -155,29 +158,29 @@ instance Accumulator FastVariance Double where
       d  = x - m
 
 instance HasCount FastVariance where
-  calcCount = fastVarCount
+  getCount = fastVarCount
 
 instance HasMean FastVariance where
-  calcMean = fastVarMean
+  getMean = fastVarMean
 
 instance HasVariance FastVariance where
-  calcVariance fv
+  getVariance fv
     | n > 1     = fastVarSumSq fv / fromIntegral (n - 1)
     | otherwise = 0
     where
       n = fastVarCount fv
 
 instance HasMLVariance FastVariance where
-  calcMLVariance fv
+  getMLVariance fv
     | n > 1     = fastVarSumSq fv / fromIntegral n
     | otherwise = 0
     where
       n = fastVarCount fv
 
 instance HasStdDev FastVariance where
-  calcStdDev = sqrt . calcVariance
+  getStdDev = sqrt . getVariance
 instance HasMLStdDev FastVariance where
-  calcMLStdDev = sqrt . calcMLVariance
+  getMLStdDev = sqrt . getMLVariance
 
 
 -- | Robust variance
@@ -187,61 +190,66 @@ data RobustVar = RobustVar
   , robustvarSumSq :: {-# UNPACK #-} !Double
   }
 
-robustVariance :: MFold Double RobustVar
-robustVariance = do
+-- | Calculate variance of sample using multiple pass fold.
+calcRobustVariance :: MFold Double RobustVar
+calcRobustVariance = do
   WelfordMean n m <- mfold fromAcc
   WelfordMean _ s <- mfold (fromAcc +<< pipe (\x -> let d = x - m in d*d))
   return $ RobustVar n m s
 
 instance HasCount RobustVar where
-  calcCount = robustvarCount
+  getCount = robustvarCount
 
 instance HasMean RobustVar where
-  calcMean = robustvarMean
+  getMean = robustvarMean
 
 instance HasVariance RobustVar where
-  calcVariance fv
+  getVariance fv
     | n > 1     = robustvarSumSq fv / fromIntegral (n - 1)
     | otherwise = 0
     where
       n = robustvarCount fv
 
 instance HasMLVariance RobustVar where
-  calcMLVariance fv
+  getMLVariance fv
     | n > 1     = robustvarSumSq fv / fromIntegral n
     | otherwise = 0
     where
       n = robustvarCount fv
 
 instance HasStdDev RobustVar where
-  calcStdDev = sqrt . calcVariance
+  getStdDev = sqrt . getVariance
 instance HasMLStdDev RobustVar where
-  calcMLStdDev = sqrt . calcMLVariance
+  getMLStdDev = sqrt . getMLVariance
 
+-- | Calculate N-th central moment of sample
+calcCentralMoment :: Int -> MFold Double Double
+calcCentralMoment n = do
+  m <- mfold calcMean
+  mfold (calcCentralMomentMean n m)
 
-centralMoment :: Int -> MFold Double Double
-centralMoment n = do
-  m <- mfold mean
-  mfold (centralMomentMean n m)
+-- | Calculate N-th central moment of sample. It takes estimate of
+--   mean as parameter.
+calcCentralMomentMean :: Int -> Double -> Fold Double Double
+calcCentralMomentMean n m =
+  calcMean +<< pipe (\x -> let d = x - m in d^n)
 
-centralMomentMean :: Int -> Double -> Fold Double Double
-centralMomentMean n m =
-  mean +<< pipe (\x -> let d = x - m in d^n)
-
-skewness :: MFold Double Double
-skewness = do
-  m <- mfold mean
+-- | Calculate skewness of sample
+calcSkewness :: MFold Double Double
+calcSkewness = do
+  m <- mfold calcMean
   mfold ((\c2 c3 -> c3 * c2**(-1.5))
-         <$> centralMomentMean 2 m
-         <*> centralMomentMean 3 m)
+         <$> calcCentralMomentMean 2 m
+         <*> calcCentralMomentMean 3 m)
 -- FIXME: we have two counter for sample size. Wasteful
 
-kurtosis :: MFold Double Double
-kurtosis = do
+-- | Calculate kurtosis of sample
+calcKurtosis :: MFold Double Double
+calcKurtosis = do
   m <- welfordMean <$> mfold fromAcc
   mfold ((\c2 c4 -> c4 / (c2*c2) - 3)
-         <$> centralMomentMean 2 m
-         <*> centralMomentMean 4 m)
+         <$> calcCentralMomentMean 2 m
+         <*> calcCentralMomentMean 4 m)
 
 
 
@@ -274,4 +282,3 @@ instance Monoid KB2Sum where
 instance Accumulator KB2Sum Double where
   snoc = add
   cons = flip add
-
