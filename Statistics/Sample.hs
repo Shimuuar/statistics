@@ -25,7 +25,7 @@ module Statistics.Sample
     , welfordMean
     , meanWeighted
     -- , harmonicMean
-    -- , geometricMean
+    , geometricMean
 
     -- * Statistics of dispersion
     -- $variance
@@ -111,12 +111,15 @@ harmonicMean = fini . G.foldl' go (T 0 0)
     fini (T b a) = fromIntegral a / b
     go (T x y) n = T (x + (1/n)) (y+1)
 {-# INLINE harmonicMean #-}
+-}
 
 -- | /O(n)/ Geometric mean of a sample containing no negative values.
-geometricMean :: (G.Vector v Double) => v Double -> Double
-geometricMean = exp . mean . G.map log
+geometricMean :: (Sample s, Element s ~ Double) => s -> Double
+geometricMean xs
+  = getGeomMean
+  $ runFold ((fromAcc :: Fold Double (GeometricMean Mean)) +<< toSource xs)
 {-# INLINE geometricMean #-}
--}
+
 
 -- | Compute the /k/th central moment of a sample.  The central moment
 -- is also known as the moment about the mean.

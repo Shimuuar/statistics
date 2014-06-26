@@ -9,6 +9,7 @@ module Statistics.Sample.Accumulators (
     -- ** Type classes for statistics
   , HasCount(..)
   , HasMean(..)
+  , HasGeometricMean(..)
   , HasVariance(..)
   , HasMLVariance(..)
   , HasStdDev(..)
@@ -18,6 +19,7 @@ module Statistics.Sample.Accumulators (
   , Binomial(..)
   , Mean(..)
   , calcMean
+  , GeometricMean
   , WelfordMean(..)
   , calcWelfordMean
   , RobustVar(..)
@@ -31,7 +33,7 @@ module Statistics.Sample.Accumulators (
 
 import Control.Applicative
 import Data.Monoid
-import Data.Folds
+import Data.Folds hiding (getCount)
 import Data.Folds.MultiPass
 import Numeric.Sum hiding (sum)
 
@@ -50,6 +52,9 @@ class HasCount a where
 
 class HasMean a where
   getMean :: a -> Double
+
+class HasGeometricMean a where
+  getGeomMean :: a -> Double
 
 class HasVariance a where
   getVariance :: a -> Double
@@ -138,6 +143,24 @@ instance HasCount (WelfordMean a) where
   getCount = getWelfordCount
 instance HasMean (WelfordMean Double) where
   getMean  = getWelfordMean
+
+-- | Geometric mean. It's parametrized by actual mean implementation
+newtype GeometricMean m = GeometricMean m
+
+instance Monoid m => Monoid (GeometricMean m) where
+  mempty = GeometricMean mempty
+  mappend (GeometricMean m1) (GeometricMean m2) = GeometricMean (mappend m1 m2)
+
+instance (Floating a, Accumulator m a) => Accumulator (GeometricMean m) a where
+  snoc (GeometricMean m) x = GeometricMean (snoc m (log x))
+  cons x (GeometricMean m) = GeometricMean (cons (log x) m)
+  unit x = GeometricMean (unit x)
+
+instance HasCount m => HasCount (GeometricMean m) where
+  getCount (GeometricMean m) = getCount m
+
+instance HasMean m => HasGeometricMean (GeometricMean m) where
+  getGeomMean (GeometricMean m) = exp (getMean m)
 
 
 -- | Fast variance of sample which require single pass over data.
