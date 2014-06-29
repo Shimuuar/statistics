@@ -26,6 +26,8 @@ module Statistics.Sample.Accumulators (
   , HarmonicMean
   , RobustVar(..)
   , calcRobustVariance
+  , FastVariance(..)
+  , calcFastVariance
   , calcCentralMoment
   , calcSkewness
   , calcKurtosis
@@ -194,6 +196,10 @@ data FastVariance = FastVariance
   , fastVarMean  :: {-# UNPACK #-} !Double
   , fastVarSumSq :: {-# UNPACK #-} !Double
   }
+
+calcFastVariance :: Fold Double FastVariance
+calcFastVariance = fromAcc
+{-# INLINE calcFastVariance #-}
 
 instance Monoid FastVariance where
   mempty = FastVariance 0 0 0
