@@ -55,12 +55,10 @@ module Statistics.Sample
     ) where
 
 import Statistics.Function (minMax)
-import Statistics.Sample.Internal (robustSumVar, sum)
+import Statistics.Sample.Internal (sum)
 import Statistics.Types (WeightedSample)
 import Statistics.Sample.Accumulators
-import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
-import qualified Data.Vector.Unboxed as U
 import Data.Folds
 
 -- Operator ^ will be overriden
@@ -244,15 +242,6 @@ varianceWeighted samp
 -- mean, Knuth's algorithm gives inaccurate results due to
 -- catastrophic cancellation.
 
-fastVar :: (G.Vector v Double) => v Double -> T1
-fastVar = G.foldl' go (T1 0 0 0)
-  where
-    go (T1 n m s) x = T1 n' m' s'
-      where n' = n + 1
-            m' = m + d / fromIntegral n'
-            s' = s + d * (x - m')
-            d  = x - m
-
 -- FIXME: invent sane naming scheme for folds
 fastVarianceXXX :: (Sample s, Element s ~ Double) => s -> FastVariance
 fastVarianceXXX xs = runFold (calcFastVariance +<< toSource xs)
@@ -274,39 +263,6 @@ fastStdDev = sqrt . fastVariance
 {-# INLINE fastStdDev #-}
 
 
-
-------------------------------------------------------------------------
--- Helper code. Monomorphic unpacked accumulators.
-
--- (^) operator from Prelude is just slow.
-(^) :: Double -> Int -> Double
-x ^ 1 = x
-x ^ n = x * (x ^ (n-1))
-{-# INLINE (^) #-}
-
-data T1 = T1 {-# UNPACK #-}!Int {-# UNPACK #-}!Double {-# UNPACK #-}!Double
-
-{-
-
-Consider this core:
-
-with data T a = T !a !Int
-
-$wfold :: Double#
-               -> Int#
-               -> Int#
-               -> (# Double, Int# #)
-
-and without,
-
-$wfold :: Double#
-               -> Int#
-               -> Int#
-               -> (# Double#, Int# #)
-
-yielding to boxed returns and heap checks.
-
--}
 
 -- $references
 --
