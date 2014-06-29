@@ -10,6 +10,7 @@ module Statistics.Sample.Accumulators (
   , HasCount(..)
   , HasMean(..)
   , HasGeometricMean(..)
+  , HasHarmonicMean(..)
   , HasVariance(..)
   , HasMLVariance(..)
   , HasStdDev(..)
@@ -19,9 +20,10 @@ module Statistics.Sample.Accumulators (
   , Binomial(..)
   , Mean(..)
   , calcMean
-  , GeometricMean
   , WelfordMean(..)
   , calcWelfordMean
+  , GeometricMean
+  , HarmonicMean
   , RobustVar(..)
   , calcRobustVariance
   , calcCentralMoment
@@ -55,6 +57,9 @@ class HasMean a where
 
 class HasGeometricMean a where
   getGeomMean :: a -> Double
+
+class HasHarmonicMean a where
+  getHarmonicMean :: a -> Double
 
 class HasVariance a where
   getVariance :: a -> Double
@@ -161,6 +166,26 @@ instance HasCount m => HasCount (GeometricMean m) where
 
 instance HasMean m => HasGeometricMean (GeometricMean m) where
   getGeomMean (GeometricMean m) = exp (getMean m)
+
+
+-- | Harmonic mean
+newtype HarmonicMean m = HarmonicMean m
+
+instance Monoid m => Monoid (HarmonicMean m) where
+  mempty = HarmonicMean mempty
+  mappend (HarmonicMean a) (HarmonicMean b) = HarmonicMean (mappend a b)
+
+instance (Fractional a, Accumulator m a) => Accumulator (HarmonicMean m) a where
+  snoc (HarmonicMean m) x = HarmonicMean $ snoc m (recip x)
+  cons x (HarmonicMean m) = HarmonicMean $ cons (recip x) m
+  unit x = HarmonicMean (unit $ recip x)
+
+
+instance HasCount m => HasCount (HarmonicMean m) where
+  getCount (HarmonicMean m) = getCount m
+
+instance HasMean m => HasHarmonicMean (HarmonicMean m) where
+  getHarmonicMean (HarmonicMean m) = recip (getMean m)
 
 
 -- | Fast variance of sample which require single pass over data.

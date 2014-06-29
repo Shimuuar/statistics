@@ -24,7 +24,7 @@ module Statistics.Sample
     , mean
     , welfordMean
     , meanWeighted
-    -- , harmonicMean
+    , harmonicMean
     , geometricMean
 
     -- * Statistics of dispersion
@@ -103,16 +103,13 @@ meanWeighted = fini . G.foldl' go (V 0 0)
                 w' = w + xw
 {-# INLINE meanWeighted #-}
 
-{-
 -- | /O(n)/ Harmonic mean.  This algorithm performs a single pass over
 -- the sample.
-harmonicMean :: (G.Vector v Double) => v Double -> Double
-harmonicMean = fini . G.foldl' go (T 0 0)
-  where
-    fini (T b a) = fromIntegral a / b
-    go (T x y) n = T (x + (1/n)) (y+1)
+harmonicMean :: (Sample s, Element s ~ Double) => s -> Double
+harmonicMean xs
+  = getHarmonicMean
+  $ runFold ((fromAcc :: Fold Double (HarmonicMean Mean)) +<< toSource xs)
 {-# INLINE harmonicMean #-}
--}
 
 -- | /O(n)/ Geometric mean of a sample containing no negative values.
 geometricMean :: (Sample s, Element s ~ Double) => s -> Double
