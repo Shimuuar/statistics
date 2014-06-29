@@ -161,7 +161,7 @@ instance Monoid m => Monoid (GeometricMean m) where
 instance (Floating a, Accumulator m a) => Accumulator (GeometricMean m) a where
   snoc (GeometricMean m) x = GeometricMean (snoc m (log x))
   cons x (GeometricMean m) = GeometricMean (cons (log x) m)
-  unit x = GeometricMean (unit x)
+  unit x = GeometricMean (unit $ log x)
 
 instance HasCount m => HasCount (GeometricMean m) where
   getCount (GeometricMean m) = getCount m
