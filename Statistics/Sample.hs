@@ -45,8 +45,9 @@ module Statistics.Sample
 
     -- ** Single-pass functions (faster, less safe)
     -- $cancellation
+    , fastVarianceXXX
     , fastVariance
-    , fastVarianceUnbiased
+    , fastVarianceML
     , fastStdDev
 
     -- * References
@@ -252,27 +253,27 @@ fastVar = G.foldl' go (T1 0 0 0)
             s' = s + d * (x - m')
             d  = x - m
 
--- | Maximum likelihood estimate of a sample's variance.
-fastVariance :: (G.Vector v Double) => v Double -> Double
-fastVariance = fini . fastVar
-  where fini (T1 n _m s)
-          | n > 1     = s / fromIntegral n
-          | otherwise = 0
-{-# INLINE fastVariance #-}
+-- FIXME: invent sane naming scheme for folds
+fastVarianceXXX :: (Sample s, Element s ~ Double) => s -> FastVariance
+fastVarianceXXX xs = runFold (calcFastVariance +<< toSource xs)
 
 -- | Unbiased estimate of a sample's variance.
-fastVarianceUnbiased :: (G.Vector v Double) => v Double -> Double
-fastVarianceUnbiased = fini . fastVar
-  where fini (T1 n _m s)
-          | n > 1     = s / fromIntegral (n - 1)
-          | otherwise = 0
-{-# INLINE fastVarianceUnbiased #-}
+fastVariance :: (Sample s, Element s ~ Double) => s -> Double
+fastVariance = getVariance . fastVarianceXXX
+{-# INLINE fastVariance #-}
+
+-- | Maximum likelihood estimate of a sample's variance.
+fastVarianceML :: (Sample s, Element s ~ Double) => s -> Double
+fastVarianceML = getVarianceML . fastVarianceXXX
+{-# INLINE fastVarianceML #-}
 
 -- | Standard deviation.  This is simply the square root of the
--- maximum likelihood estimate of the variance.
-fastStdDev :: (G.Vector v Double) => v Double -> Double
+--   unbiased estimate of the variance.
+fastStdDev :: (Sample s, Element s ~ Double) => s -> Double
 fastStdDev = sqrt . fastVariance
 {-# INLINE fastStdDev #-}
+
+
 
 ------------------------------------------------------------------------
 -- Helper code. Monomorphic unpacked accumulators.

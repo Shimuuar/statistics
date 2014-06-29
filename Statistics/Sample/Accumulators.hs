@@ -67,7 +67,7 @@ class HasVariance a where
   getVariance :: a -> Double
 
 class HasMLVariance a where
-  getMLVariance :: a -> Double
+  getVarianceML :: a -> Double
 
 class HasStdDev a where
   getStdDev :: a -> Double
@@ -230,7 +230,7 @@ instance HasVariance FastVariance where
       n = fastVarCount fv
 
 instance HasMLVariance FastVariance where
-  getMLVariance fv
+  getVarianceML fv
     | n > 1     = fastVarSumSq fv / fromIntegral n
     | otherwise = 0
     where
@@ -239,7 +239,7 @@ instance HasMLVariance FastVariance where
 instance HasStdDev FastVariance where
   getStdDev = sqrt . getVariance
 instance HasMLStdDev FastVariance where
-  getMLStdDev = sqrt . getMLVariance
+  getMLStdDev = sqrt . getVarianceML
 
 
 -- | Robust variance
@@ -270,7 +270,7 @@ instance HasVariance RobustVar where
       n = robustvarCount fv
 
 instance HasMLVariance RobustVar where
-  getMLVariance fv
+  getVarianceML fv
     | n > 1     = robustvarSumSq fv / fromIntegral n
     | otherwise = 0
     where
@@ -279,7 +279,7 @@ instance HasMLVariance RobustVar where
 instance HasStdDev RobustVar where
   getStdDev = sqrt . getVariance
 instance HasMLStdDev RobustVar where
-  getMLStdDev = sqrt . getMLVariance
+  getMLStdDev = sqrt . getVarianceML
 
 -- | Calculate N-th central moment of sample
 calcCentralMoment :: Int -> MFold Double Double
