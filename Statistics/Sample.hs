@@ -37,6 +37,7 @@ module Statistics.Sample
 
     -- ** Two-pass functions (numerically robust)
     -- $robust
+    , robustVariance
     , variance
     , varianceML
     , stdDev
@@ -192,6 +193,12 @@ kurtosis xs = runFold (calcKurtosis +<< toSource xs)
 -- subject to stream fusion.
 
 data V = V {-# UNPACK #-} !Double {-# UNPACK #-} !Double
+
+
+-- | Calculate variance of a sample
+robustVariance :: (Sample s, Element s ~ Double) => s -> RobustVar
+robustVariance xs = runFold (calcRobustVariance +<< toSource xs)
+{-# INLINE robustVariance #-}
 
 -- | Unbiased estimate of a sample's variance. Also known
 --   as the sample variance, where the denominator is /n-1/.
