@@ -8,9 +8,9 @@
 module Statistics.Regression
     (
       olsRegress
-    , ols
+    , olsMatrix
     , rSquare
-    , bootstrapRegress
+    -- , bootstrapRegress
     ) where
 
 import Control.Applicative ((<$>))
@@ -59,7 +59,7 @@ olsRegress preds@(_:_) resps
                                   show (G.length resps, n)
   | otherwise           = (coeffs, rSquare mxpreds resps coeffs)
   where
-    coeffs    = ols mxpreds resps
+    coeffs    = olsMatrix mxpreds resps
     mxpreds   = transpose .
                 fromVector (length lss + 1) n .
                 G.concat $ preds ++ [G.replicate n 1]
@@ -67,10 +67,11 @@ olsRegress preds@(_:_) resps
 olsRegress _ _ = error "no predictors given"
 
 -- | Compute the ordinary least-squares solution to /A x = b/.
-ols :: Matrix     -- ^ /A/ has at least as many rows as columns.
+olsMatrix
+    :: Matrix     -- ^ /A/ has at least as many rows as columns.
     -> Vector     -- ^ /b/ has the same length as columns in /A/.
     -> Vector
-ols a b
+olsMatrix a b
   | rs < cs   = error $ "fewer rows than columns " ++ show d
   | otherwise = solve r (transpose q `multiplyV` b)
   where
@@ -108,6 +109,7 @@ rSquare pred resp coeff = 1 - r / t
     t   = sum $ flip U.map resp $ \x -> square (x - mean resp)
     p i = sum . flip U.imap coeff $ \j -> (* unsafeIndex pred i j)
 
+{-
 -- | Bootstrap a regression function.  Returns both the results of the
 -- regression and the requested confidence interval values.
 bootstrapRegress :: GenIO
@@ -154,3 +156,4 @@ balance :: Int -> Int -> [Int]
 balance numSlices numItems = zipWith (+) (replicate numSlices q)
                                          (replicate r 1 ++ repeat 0)
  where (q,r) = numItems `quotRem` numSlices
+-}
