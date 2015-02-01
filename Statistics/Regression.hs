@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 -- |
 -- Module    : Statistics.Regression
 -- Copyright : 2014 Bryan O'Sullivan
@@ -32,6 +33,26 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Unboxed.Mutable as M
+
+
+----------------------------------------------------------------
+-- Ordinary least squares without errors
+----------------------------------------------------------------
+
+-- | Perform ordinary least-squares linear regression on set of (x,y)
+--   points.
+ols :: G.Vector v (Double,Double) => v (Double,Double) -> (Vector, Double)
+ols points
+  | n < 2     = error "Too few points to perform linear regression"
+  | otherwise = (coeffs, rSquare mat ys coeffs)
+  where
+    n       = G.length points
+    (xs,ys) = U.unzip $ G.convert points
+    mat     = fromColumns [ xs
+                          , U.replicate n 1
+                          ]
+    coeffs  = olsMatrix mat ys
+
 
 -- | Perform an ordinary least-squares regression on a set of
 -- predictors, and calculate the goodness-of-fit of the regression.
