@@ -7,10 +7,12 @@
 -- Functions for regression analysis.
 
 module Statistics.Regression
-    (
-      olsRegress
+    ( LinearModel(..)
+    , ols
+    , olsModel
+    , olsRegress
     , olsMatrix
-    , rSquare
+    , calculateRSquare
     -- , bootstrapRegress
     ) where
 
@@ -31,6 +33,7 @@ import Statistics.Sample.Internal (sum)
 import System.Random.MWC (GenIO, uniformR)
 import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
+import           Data.Vector.Generic   ((!))
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Unboxed.Mutable as M
 
@@ -39,12 +42,26 @@ import qualified Data.Vector.Unboxed.Mutable as M
 -- Ordinary least squares without errors
 ----------------------------------------------------------------
 
+-- | Linear model for ordinary least squares fit
+data LinearModel a = LinearModel
+  { linearModel  :: a -> Double
+    -- ^ Evaluate model prediction at the point
+  , linearCoeffs :: Vector
+    -- ^ Coefficients of model
+  , rSquare      :: !Double
+    -- ^ R-square goodness of fit criterion.
+  }
+
 -- | Perform ordinary least-squares linear regression on set of (x,y)
 --   points.
-ols :: G.Vector v (Double,Double) => v (Double,Double) -> (Vector, Double)
+ols :: G.Vector v (Double,Double) => v (Double,Double) -> LinearModel Double
 ols points
   | n < 2     = error "Too few points to perform linear regression"
-  | otherwise = (coeffs, rSquare mat ys coeffs)
+  | otherwise = LinearModel
+              { linearModel  = \x -> (coeffs ! 0) * x + (coeffs ! 1)
+              , linearCoeffs = coeffs
+              , rSquare      = calculateRSquare mat ys coeffs
+              }
   where
     n       = G.length points
     (xs,ys) = U.unzip $ G.convert points
@@ -53,6 +70,25 @@ ols points
                           ]
     coeffs  = olsMatrix mat ys
 
+-- | General linear model for data.
+olsModel :: (G.Vector v a, G.Vector v Double)
+         => [a -> Double]       -- ^ Functions
+         -> v a                 -- ^ Predictor vector
+         -> v Double            -- ^ Responder vector
+         -> LinearModel a
+olsModel [] _ _ = error "Not enough functions"
+olsModel funs points ys
+  | n < nCol  = error "Not enough data to evaluate model"
+  | otherwise = LinearModel
+              { linearModel = \a -> G.sum $ G.zipWith (*) coeffs (G.fromList [f a | f <- funs])
+              , linearCoeffs = coeffs
+              , rSquare      = calculateRSquare mat (G.convert ys) coeffs
+              }
+  where
+    nCol   = length funs
+    n      = G.length points
+    mat    = fromColumns [ G.convert (G.map f points) | f <- funs ]
+    coeffs = olsMatrix mat (G.convert ys)
 
 -- | Perform an ordinary least-squares regression on a set of
 -- predictors, and calculate the goodness-of-fit of the regression.
@@ -63,7 +99,7 @@ ols points
 --   element than the list of predictors; the last element is the
 --   /y/-intercept value.
 --
--- * /R&#0178;/, the coefficient of determination (see 'rSquare' for
+-- * /R&#0178;/, the coefficient of determination (see 'calculateRSquare' for
 --   details).
 olsRegress :: [Vector]
               -- ^ Non-empty list of predictor vectors.  Must all have
@@ -72,14 +108,21 @@ olsRegress :: [Vector]
            -> Vector
               -- ^ Responder vector.  Must have the same length as the
               -- predictor vectors.
-           -> (Vector, Double)
+           -> LinearModel Vector
 olsRegress preds@(_:_) resps
   | any (/=n) ls        = error $ "predictor vector length mismatch " ++
                                   show lss
   | G.length resps /= n = error $ "responder/predictor length mismatch " ++
                                   show (G.length resps, n)
-  | otherwise           = (coeffs, rSquare mxpreds resps coeffs)
+  | otherwise           = LinearModel
+                        { linearModel   = \v -> case () of
+                             _| G.length v /= nCol -> error "Invalid number of columns"
+                              | otherwise          -> sum $ G.zipWith (*) (G.snoc v 1) (coeffs)
+                        , linearCoeffs  = coeffs
+                        , rSquare       = calculateRSquare mxpreds resps coeffs
+                        }
   where
+    nCol      = length preds
     coeffs    = olsMatrix mxpreds resps
     mxpreds   = transpose .
                 fromVector (length lss + 1) n .
@@ -120,11 +163,11 @@ solve r b
 --
 -- This value will be 1 if the predictors fit perfectly, dropping to 0
 -- if they have no explanatory power.
-rSquare :: Matrix               -- ^ Predictors (regressors).
+calculateRSquare :: Matrix               -- ^ Predictors (regressors).
         -> Vector               -- ^ Responders.
         -> Vector               -- ^ Regression coefficients.
         -> Double
-rSquare pred resp coeff = 1 - r / t
+calculateRSquare pred resp coeff = 1 - r / t
   where
     r   = sum $ flip U.imap resp $ \i x -> square (x - p i)
     t   = sum $ flip U.map resp $ \x -> square (x - mean resp)
