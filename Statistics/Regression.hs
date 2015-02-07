@@ -25,7 +25,7 @@ import GHC.Conc (getNumCapabilities)
 import Prelude hiding (pred, sum)
 import Statistics.Function as F
 import Statistics.Matrix hiding (map)
-import Statistics.Matrix.Algorithms (qr)
+import Statistics.Matrix.Algorithms (qr,solve)
 import Statistics.Resampling (splitGen)
 import Statistics.Resampling.Bootstrap (Estimate(..))
 import Statistics.Sample (mean)
@@ -142,21 +142,6 @@ olsMatrix a b
     d@(rs,cs) = dimension a
     (q,r)     = qr a
 
--- | Solve the equation /R x = b/.
-solve :: Matrix     -- ^ /R/ is an upper-triangular square matrix.
-      -> Vector     -- ^ /b/ is of the same length as rows\/columns in /R/.
-      -> Vector
-solve r b
-  | n /= l    = error $ "row/vector mismatch " ++ show (n,l)
-  | otherwise = U.create $ do
-  s <- U.thaw b
-  rfor n 0 $ \i -> do
-    si <- (/ unsafeIndex r i i) <$> M.unsafeRead s i
-    M.unsafeWrite s i si
-    for 0 i $ \j -> F.unsafeModify s j $ subtract ((unsafeIndex r j i) * si)
-  return s
-  where n = rows r
-        l = U.length b
 
 -- | Compute /R&#0178;/, the coefficient of determination that
 -- indicates goodness-of-fit of a regression.
