@@ -8,7 +8,7 @@
 module Statistics.Matrix.Algorithms
     (
       qr
-    , solve  
+    , solveR
     ) where
 
 import Control.Applicative ((<$>), (<*>))
@@ -48,10 +48,10 @@ innerProduct mmat j k = MM.immutably mmat $ \mat ->
 
 
 -- | Solve the equation /R x = b/.
-solve :: Matrix     -- ^ /R/ is an upper-triangular square matrix.
-      -> Vector     -- ^ /b/ is of the same length as rows\/columns in /R/.
-      -> Vector
-solve r b
+solveR :: Matrix     -- ^ /R/ is an upper-triangular square matrix.
+       -> Vector     -- ^ /b/ is of the same length as rows\/columns in /R/.
+       -> Vector
+solveR r b
   | n /= l    = error $ "row/vector mismatch " ++ show (n,l)
   | otherwise = U.create $ do
   s <- U.thaw b

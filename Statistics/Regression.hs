@@ -25,7 +25,7 @@ import GHC.Conc (getNumCapabilities)
 import Prelude hiding (pred, sum)
 import Statistics.Function as F
 import Statistics.Matrix hiding (map)
-import Statistics.Matrix.Algorithms (qr,solve)
+import Statistics.Matrix.Algorithms (qr,solveR)
 import Statistics.Resampling (splitGen)
 import Statistics.Resampling.Bootstrap (Estimate(..))
 import Statistics.Sample (mean)
@@ -137,7 +137,7 @@ olsMatrix
     -> Vector
 olsMatrix a b
   | rs < cs   = error $ "fewer rows than columns " ++ show d
-  | otherwise = solve r (transpose q `multiplyV` b)
+  | otherwise = solveR r (transpose q `multiplyV` b)
   where
     d@(rs,cs) = dimension a
     (q,r)     = qr a
