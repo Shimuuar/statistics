@@ -10,7 +10,7 @@ module Tests.Matrix.Types
 
 import Control.Monad (join)
 import Control.Applicative ((<$>), (<*>))
-import Statistics.Matrix (Matrix(..), fromList)
+import Statistics.Matrix (Matrix(..), fromList, toRowLists)
 import Test.QuickCheck
 import Tests.Helpers (shrinkFixedList, small)
 import qualified Data.Vector.Unboxed as U
@@ -23,10 +23,8 @@ fromMat :: Mat Double -> Matrix
 fromMat (Mat r c xs) = fromList r c (concat xs)
 
 toMat :: Matrix -> Mat Double
-toMat (Matrix r c _ v) = Mat r c . split . U.toList $ v
-  where split xs@(_:_) = let (h,t) = splitAt c xs
-                         in h : split t
-        split []       = []
+toMat m = Mat (rows m) (cols m) (toRowLists m)
+
 
 instance (Arbitrary a) => Arbitrary (Mat a) where
     arbitrary = small $ join (arbMat <$> arbitrary <*> arbitrary)
