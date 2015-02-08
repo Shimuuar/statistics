@@ -27,9 +27,13 @@ t_transpose :: Matrix -> Property
 t_transpose m = U.concat (map (column n) [0..rows m-1]) === toVector m
   where n = transpose m
 
+-- | Test that A = QR
 t_qr :: Matrix -> Property
 t_qr a = hasNaN p .||. eql 1e-10 a p
-  where p = uncurry multiply (qr a)
+  where
+    (q,r) = qr a
+    p     = q `multiply` r
+
 
 tests :: Test
 tests = testGroup "Matrix" [
