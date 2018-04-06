@@ -10,7 +10,7 @@
 -- Types for working with statistics.
 module Statistics.Types.Internal where
 
-
+import Control.Exception (Exception)
 import qualified Data.Vector.Unboxed as U (Vector)
 
 -- | Sample data.
@@ -22,3 +22,13 @@ type WeightedSample = U.Vector (Double,Double)
 -- | Weights for affecting the importance of elements of a sample.
 type Weights = U.Vector Double
 
+
+-- | Generic exception for use in statistics package
+data StatisticsException
+  = InvalidSample String String
+    -- ^ Quantity of interest couldn't be calculated for given
+    --   sample. Parameters are function name and human-readable error
+    --   string.
+  deriving (Show)
+
+instance Exception StatisticsException

@@ -52,32 +52,36 @@ module Statistics.Sample
     -- $references
     ) where
 
-import Statistics.Function (minMax)
+import Control.Monad.Catch        (MonadThrow(..))
+import Statistics.Function        (minMax)
 import Statistics.Sample.Internal (robustSumVar, sum)
-import Statistics.Types.Internal  (Sample,WeightedSample)
-import qualified Data.Vector as V
-import qualified Data.Vector.Generic as G
-import qualified Data.Vector.Unboxed as U
+import Statistics.Types.Internal  (Sample,WeightedSample,StatisticsException(..))
+import qualified Data.Vector          as V
+import qualified Data.Vector.Generic  as G
+import qualified Data.Vector.Unboxed  as U
+import qualified Data.Vector.Storable as S
 
 -- Operator ^ will be overridden
 import Prelude hiding ((^), sum)
 
 -- | /O(n)/ Range. The difference between the largest and smallest
 -- elements of a sample.
-range :: (G.Vector v Double) => v Double -> Double
-range s = hi - lo
-    where (lo , hi) = minMax s
+range :: (G.Vector v Double, MonadThrow m) => v Double -> m Double
+range xs
+  | G.null xs = modErr "range" "Empty sample"
+  | otherwise = return $! let (lo , hi) = minMax xs in hi - lo
 {-# INLINE range #-}
 
 -- | /O(n)/ Arithmetic mean.  This uses Kahan-Babuška-Neumaier
 --   summation.
 mean :: (G.Vector v Double) => v Double -> Double
 mean xs = sum xs / fromIntegral (G.length xs)
-{-# SPECIALIZE mean :: U.Vector Double -> Double #-}
 {-# SPECIALIZE mean :: V.Vector Double -> Double #-}
+{-# SPECIALIZE mean :: U.Vector Double -> Double #-}
+{-# SPECIALIZE mean :: S.Vector Double -> Double #-}
 
 -- | /O(n)/ Arithmetic mean for weighted sample. It uses a single-pass
--- algorithm analogous to the one used by 'welfordMean'.
+--   algorithm analogous to the one used by 'welfordMean'.
 meanWeighted :: (G.Vector v (Double,Double)) => v (Double,Double) -> Double
 meanWeighted = fini . G.foldl' go (V 0 0)
     where
@@ -89,7 +93,7 @@ meanWeighted = fini . G.foldl' go (V 0 0)
 {-# INLINE meanWeighted #-}
 
 -- | /O(n)/ Harmonic mean.  This algorithm performs a single pass over
--- the sample.
+--   the sample.
 harmonicMean :: (G.Vector v Double) => v Double -> Double
 harmonicMean = fini . G.foldl' go (T 0 0)
   where
@@ -369,6 +373,10 @@ $wfold :: Double#
 yielding to boxed returns and heap checks.
 
 -}
+
+modErr :: MonadThrow m => String -> String -> m a
+modErr f err = throwM $ InvalidSample ("Statistics.Sample." ++ f) err
+
 
 -- $references
 --
