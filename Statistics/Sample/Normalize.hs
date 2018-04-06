@@ -16,11 +16,15 @@ module Statistics.Sample.Normalize
       standardize
     ) where
 
-import Statistics.Sample
+import Control.Monad
+import Control.Monad.Catch (MonadThrow(..))
 import qualified Data.Vector.Generic  as G
 import qualified Data.Vector          as V
 import qualified Data.Vector.Unboxed  as U
 import qualified Data.Vector.Storable as S
+
+import Statistics.Sample
+import Statistics.Types.Internal (StatisticsException(..))
 
 -- | /O(n)/ Normalize a sample using standard scores:
 --
@@ -29,15 +33,19 @@ import qualified Data.Vector.Storable as S
 --   Where μ is sample mean and σ is standard deviation computed from
 --   unbiased variance estimation. If sample to small to compute σ or
 --   it's equal to 0 @Nothing@ is returned.
-standardize :: (G.Vector v Double) => v Double -> Maybe (v Double)
+standardize :: (G.Vector v Double, MonadThrow m) => v Double -> m (v Double)
 standardize xs
-  | G.length xs < 2 = Nothing
-  | sigma == 0      = Nothing
-  | otherwise       = Just $ G.map (\x -> (x - mu) / sigma) xs
-  where
-    mu    = mean   xs
-    sigma = stdDev xs
+  | G.length xs < 2 = modErr "standardize" "Insufficient sample size"
+  | otherwise       = do mu    <- mean   xs
+                         sigma <- stdDev xs
+                         when (sigma == 0) $
+                           modErr "standardize" "Sample have zero variance"
+                         return $! G.map (\x -> (x - mu) / sigma) xs
 {-# INLINABLE  standardize #-}
-{-# SPECIALIZE standardize :: V.Vector Double -> Maybe (V.Vector Double) #-}
-{-# SPECIALIZE standardize :: U.Vector Double -> Maybe (U.Vector Double) #-}
-{-# SPECIALIZE standardize :: S.Vector Double -> Maybe (S.Vector Double) #-}
+{-# SPECIALIZE standardize :: MonadThrow m => V.Vector Double -> m (V.Vector Double) #-}
+{-# SPECIALIZE standardize :: MonadThrow m => U.Vector Double -> m (U.Vector Double) #-}
+{-# SPECIALIZE standardize :: MonadThrow m => S.Vector Double -> m (S.Vector Double) #-}
+
+
+modErr :: MonadThrow m => String -> String -> m a
+modErr f err = throwM $ InvalidSample ("Statistics.Sample.Normalize" ++ f) err

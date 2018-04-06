@@ -155,7 +155,8 @@ errMsg _ s = "Statistics.Distribution.Laplace.laplace: scale parameter must be p
 --   check whether it truly is Laplace. Location of distribution
 --   estimated as median of sample.
 instance D.FromSample LaplaceDistribution Double where
-  fromSample xs = do
-    s <- Q.median Q.medianUnbiased xs
-    let l = S.mean $ G.map (\x -> abs $ x - s) xs
-    return $! LD s l
+  -- FIXME
+  -- fromSample xs = do
+  --   s <- Q.median Q.medianUnbiased xs
+  --   let l = S.mean $ G.map (\x -> abs $ x - s) xs
+  --   return $! LD s l

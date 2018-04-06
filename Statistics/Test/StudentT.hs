@@ -13,7 +13,7 @@ module Statistics.Test.StudentT
 
 import Statistics.Distribution hiding (mean)
 import Statistics.Distribution.StudentT
-import Statistics.Sample (mean, varianceUnbiased)
+import Statistics.Sample (mean)
 import Statistics.Test.Types
 import Statistics.Types    (mkPValue,PValue)
 import Statistics.Function (square)
@@ -129,8 +129,11 @@ tStatistics varequal sample1 sample2 = (t, ndf)
     n2 = fromIntegral $ G.length sample2
     m1 = mean sample1
     m2 = mean sample2
-    s1 = varianceUnbiased sample1
-    s2 = varianceUnbiased sample2
+    -- FIXME
+    s1 = undefined
+    s2 = undefined
+    -- s1 = varianceUnbiased sample1
+    -- s2 = varianceUnbiased sample2
 
 
 -- Calculate T-statistics for paired sample

@@ -35,8 +35,9 @@ module Statistics.Distribution
     , sumProbabilities
     ) where
 
-import Control.Applicative ((<$>), Applicative(..))
+import Control.Applicative     ((<$>), Applicative(..))
 import Control.Monad.Primitive (PrimMonad,PrimState)
+import Control.Monad.Catch     (MonadThrow(..))
 import Prelude hiding (sum)
 import Statistics.Function (square)
 import Statistics.Sample.Internal (sum)
@@ -176,7 +177,7 @@ class FromSample d a where
   --   not enough data to estimate or sample clearly doesn't come from
   --   distribution in question. For example if there's negative
   --   samples in exponential distribution.
-  fromSample :: G.Vector v a => v a -> Maybe d
+  fromSample :: (MonadThrow m, G.Vector v a) => v a -> m d
 
 
 -- | Generate variates from continuous distribution using inverse

@@ -6,12 +6,13 @@
 module Statistics.Correlation
     ( -- * Pearson correlation
       pearson
-    , pearsonMatByRow
+    -- , pearsonMatByRow
       -- * Spearman correlation
     , spearman
-    , spearmanMatByRow
+    -- , spearmanMatByRow
     ) where
 
+import Control.Monad.Catch (MonadThrow(..))
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
 import Statistics.Matrix
@@ -25,17 +26,18 @@ import Statistics.Test.Internal (rankUnsorted)
 
 -- | Pearson correlation for sample of pairs. Exactly same as
 -- 'Statistics.Sample.correlation'
-pearson :: (G.Vector v (Double, Double), G.Vector v Double)
-        => v (Double, Double) -> Double
+pearson :: (G.Vector v (Double, Double), G.Vector v Double, MonadThrow m)
+        => v (Double, Double) -> m Double
 pearson = correlation
 {-# INLINE pearson #-}
 
--- | Compute pairwise pearson correlation between rows of a matrix
-pearsonMatByRow :: Matrix -> Matrix
-pearsonMatByRow m
-  = generateSym (rows m)
-      (\i j -> pearson $ row m i `U.zip` row m j)
-{-# INLINE pearsonMatByRow #-}
+-- FIXME:
+-- -- | Compute pairwise pearson correlation between rows of a matrix
+-- pearsonMatByRow :: Matrix -> Matrix
+-- pearsonMatByRow m
+--   = generateSym (rows m)
+--       (\i j -> pearson $ row m i `U.zip` row m j)
+-- {-# INLINE pearsonMatByRow #-}
 
 
 
@@ -54,18 +56,21 @@ spearman :: ( Ord a
             , G.Vector v (Double, Double)
             , G.Vector v (Int, a)
             , G.Vector v (Int, b)
+            , MonadThrow m
             )
          => v (a, b)
-         -> Double
+         -> m Double
 spearman xy
   = pearson
+  -- FIXME: pair
   $ G.zip (rankUnsorted x) (rankUnsorted y)
   where
     (x, y) = G.unzip xy
 {-# INLINE spearman #-}
 
--- | compute pairwise spearman correlation between rows of a matrix
-spearmanMatByRow :: Matrix -> Matrix
-spearmanMatByRow
-  = pearsonMatByRow . fromRows . fmap rankUnsorted . toRows
-{-# INLINE spearmanMatByRow #-}
+-- FIXME:
+-- -- | compute pairwise spearman correlation between rows of a matrix
+-- spearmanMatByRow :: Matrix -> Matrix
+-- spearmanMatByRow
+--   = pearsonMatByRow . fromRows . fmap rankUnsorted . toRows
+-- {-# INLINE spearmanMatByRow #-}

@@ -140,7 +140,7 @@ errMsg l = "Statistics.Distribution.Exponential.exponential: scale parameter mus
 --   sample is empty or contains negative elements. No other tests are
 --   made to check whether it truly is exponential.
 instance D.FromSample ExponentialDistribution Double where
-  fromSample xs
-    | G.null xs       = Nothing
-    | G.all (>= 0) xs = Nothing
-    | otherwise       = Just $! ED (S.mean xs)
+  -- FIXME
+  -- fromSample xs
+  --   | G.all (>= 0) xs = Nothing
+  --   | otherwise       = ED `fmap` S.mean xs

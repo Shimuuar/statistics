@@ -65,9 +65,11 @@ kruskalWallis samples = (nTot - 1) * numerator / denominator
     -- Average rank of all samples
     avgRank = (nTot + 1) / 2
     --
-    numerator = sumWith rsamples $ \sample ->
-        let n = fromIntegral $ U.length sample
-        in  n * square (mean sample - avgRank)
+    -- FIXME:
+    numerator = undefined
+    -- numerator = sumWith rsamples $ \sample ->
+    --     let n = fromIntegral $ U.length sample
+    --     in  n * square (mean sample - avgRank)
     denominator = sumWith rsamples $ \sample ->
         Sample.sum $ U.map (\r -> square (r - avgRank)) sample
 

@@ -27,10 +27,10 @@ module Statistics.Resampling
     , resampleVector
       -- * Jackknife
     , jackknife
-    , jackknifeMean
-    , jackknifeVariance
-    , jackknifeVarianceUnb
-    , jackknifeStdDev
+    -- , jackknifeMean
+    -- , jackknifeVariance
+    -- , jackknifeVarianceUnb
+    -- , jackknifeStdDev
       -- * Helper functions
     , splitGen
     ) where
@@ -56,7 +56,7 @@ import GHC.Conc (numCapabilities)
 import GHC.Generics (Generic)
 import Numeric.Sum (Summation(..), kbn)
 import Statistics.Function (indices)
-import Statistics.Sample (mean, stdDev, variance, varianceUnbiased)
+import Statistics.Sample (mean, stdDev, variance)
 import Statistics.Types (Sample)
 import System.Random.MWC (Gen, GenIO, initialize, uniformR, uniformVector)
 
@@ -110,10 +110,11 @@ data Estimator = Mean
 
 -- | Run an 'Estimator' over a sample.
 estimate :: Estimator -> Sample -> Double
-estimate Mean             = mean
-estimate Variance         = variance
-estimate VarianceUnbiased = varianceUnbiased
-estimate StdDev           = stdDev
+-- FIXME
+-- estimate Mean             = mean
+-- estimate Variance         = variance
+-- estimate VarianceUnbiased = varianceUnbiased
+-- estimate StdDev           = stdDev
 estimate (Function est) = est
 
 
@@ -202,10 +203,10 @@ resampleVector gen v
 -- | /O(n) or O(n^2)/ Compute a statistical estimate repeatedly over a
 -- sample, each time omitting a successive element.
 jackknife :: Estimator -> Sample -> U.Vector Double
-jackknife Mean sample             = jackknifeMean sample
-jackknife Variance sample         = jackknifeVariance sample
-jackknife VarianceUnbiased sample = jackknifeVarianceUnb sample
-jackknife StdDev sample = jackknifeStdDev sample
+-- jackknife Mean sample             = jackknifeMean sample
+-- jackknife Variance sample         = jackknifeVariance sample
+-- jackknife VarianceUnbiased sample = jackknifeVarianceUnb sample
+-- jackknife StdDev sample = jackknifeStdDev sample
 jackknife (Function est) sample
   | G.length sample == 1 = singletonErr "jackknife"
   | otherwise            = U.map f . indices $ sample
@@ -220,39 +221,41 @@ jackknifeMean samp
     l   = fromIntegral (len - 1)
     len = G.length samp
 
--- | /O(n)/ Compute the jackknife variance of a sample with a
--- correction factor @c@, so we can get either the regular or
--- \"unbiased\" variance.
-jackknifeVariance_ :: Double -> Sample -> U.Vector Double
-jackknifeVariance_ c samp
-  | len == 1  = singletonErr "jackknifeVariance"
-  | otherwise = G.zipWith4 go als ars bls brs
-  where
-    als = pfxSumL . G.map goa $ samp
-    ars = pfxSumR . G.map goa $ samp
-    goa x = v * v where v = x - m
-    bls = pfxSumL . G.map (subtract m) $ samp
-    brs = pfxSumR . G.map (subtract m) $ samp
-    m = mean samp
-    n = fromIntegral len
-    go al ar bl br = (al + ar - (b * b) / q) / (q - c)
-      where b = bl + br
-            q = n - 1
-    len = G.length samp
+-- FIXME:
 
--- | /O(n)/ Compute the unbiased jackknife variance of a sample.
-jackknifeVarianceUnb :: Sample -> U.Vector Double
-jackknifeVarianceUnb samp
-  | G.length samp == 2  = singletonErr "jackknifeVariance"
-  | otherwise           = jackknifeVariance_ 1 samp
+-- -- | /O(n)/ Compute the jackknife variance of a sample with a
+-- -- correction factor @c@, so we can get either the regular or
+-- -- \"unbiased\" variance.
+-- jackknifeVariance_ :: Double -> Sample -> U.Vector Double
+-- jackknifeVariance_ c samp
+--   | len == 1  = singletonErr "jackknifeVariance"
+--   | otherwise = G.zipWith4 go als ars bls brs
+--   where
+--     als = pfxSumL . G.map goa $ samp
+--     ars = pfxSumR . G.map goa $ samp
+--     goa x = v * v where v = x - m
+--     bls = pfxSumL . G.map (subtract m) $ samp
+--     brs = pfxSumR . G.map (subtract m) $ samp
+--     m = mean samp
+--     n = fromIntegral len
+--     go al ar bl br = (al + ar - (b * b) / q) / (q - c)
+--       where b = bl + br
+--             q = n - 1
+--     len = G.length samp
 
--- | /O(n)/ Compute the jackknife variance of a sample.
-jackknifeVariance :: Sample -> U.Vector Double
-jackknifeVariance = jackknifeVariance_ 0
+-- -- | /O(n)/ Compute the unbiased jackknife variance of a sample.
+-- jackknifeVarianceUnb :: Sample -> U.Vector Double
+-- jackknifeVarianceUnb samp
+--   | G.length samp == 2  = singletonErr "jackknifeVariance"
+--   | otherwise           = jackknifeVariance_ 1 samp
 
--- | /O(n)/ Compute the jackknife standard deviation of a sample.
-jackknifeStdDev :: Sample -> U.Vector Double
-jackknifeStdDev = G.map sqrt . jackknifeVarianceUnb
+-- -- | /O(n)/ Compute the jackknife variance of a sample.
+-- jackknifeVariance :: Sample -> U.Vector Double
+-- jackknifeVariance = jackknifeVariance_ 0
+
+-- -- | /O(n)/ Compute the jackknife standard deviation of a sample.
+-- jackknifeStdDev :: Sample -> U.Vector Double
+-- jackknifeStdDev = G.map sqrt . jackknifeVarianceUnb
 
 pfxSumL :: U.Vector Double -> U.Vector Double
 pfxSumL = G.map kbn . G.scanl add zero

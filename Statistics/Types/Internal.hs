@@ -29,6 +29,8 @@ data StatisticsException
     -- ^ Quantity of interest couldn't be calculated for given
     --   sample. Parameters are function name and human-readable error
     --   string.
+  | InvalidParameter String String
+    -- ^ Some parameter to function has invalid name
   deriving (Show)
 
 instance Exception StatisticsException
