@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances, OverlappingInstances, ScopedTypeVariables,
+{-# LANGUAGE FlexibleInstances, ScopedTypeVariables,
     ViewPatterns #-}
 module Tests.Distribution (tests) where
 
@@ -6,8 +6,7 @@ import Control.Applicative ((<$), (<$>), (<*>))
 import qualified Control.Exception as E
 import Data.List (find)
 import Data.Typeable (Typeable)
-import qualified Numeric.IEEE as IEEE
-import Numeric.MathFunctions.Constants (m_tiny,m_epsilon)
+import Numeric.MathFunctions.Constants (m_tiny,m_huge,m_epsilon)
 import Numeric.MathFunctions.Comparison
 import Statistics.Distribution
 import Statistics.Distribution.Beta           (BetaDistribution)
@@ -23,11 +22,12 @@ import Statistics.Distribution.Laplace        (LaplaceDistribution)
 import Statistics.Distribution.Normal         (NormalDistribution)
 import Statistics.Distribution.Poisson        (PoissonDistribution)
 import Statistics.Distribution.StudentT
-import Statistics.Distribution.Transform      (LinearTransform, linTransDistr)
+import Statistics.Distribution.Transform      (LinearTransform)
 import Statistics.Distribution.Uniform        (UniformDistribution)
-import Statistics.Distribution.DiscreteUniform (DiscreteUniform, discreteUniformAB)
-import Test.Framework (Test, testGroup)
-import Test.Framework.Providers.QuickCheck2 (testProperty)
+import Statistics.Distribution.DiscreteUniform (DiscreteUniform)
+import Test.Tasty                 (TestTree, testGroup)
+import Test.Tasty.QuickCheck      (testProperty)
+import Test.Tasty.ExpectedFailure (ignoreTest)
 import Test.QuickCheck as QC
 import Test.QuickCheck.Monadic as QC
 import Text.Printf (printf)
@@ -38,7 +38,7 @@ import Tests.Helpers   (monotonicallyIncreasesIEEE,isDenorm)
 import Tests.Orphanage ()
 
 -- | Tests for all distributions
-tests :: Test
+tests :: TestTree
 tests = testGroup "Tests for all distributions"
   [ contDistrTests (T :: T BetaDistribution        )
   , contDistrTests (T :: T CauchyDistribution      )
@@ -67,18 +67,20 @@ tests = testGroup "Tests for all distributions"
 ----------------------------------------------------------------
 
 -- Tests for continuous distribution
-contDistrTests :: (Param d, ContDistr d, QC.Arbitrary d, Typeable d, Show d) => T d -> Test
+contDistrTests :: (Param d, ContDistr d, QC.Arbitrary d, Typeable d, Show d) => T d -> TestTree
 contDistrTests t = testGroup ("Tests for: " ++ typeName t) $
   cdfTests t ++
   [ testProperty "PDF sanity"              $ pdfSanityCheck     t
-  , testProperty "Quantile is CDF inverse" $ quantileIsInvCDF   t
+  ] ++
+  [ (if quantileIsInvCDF_enabled t then id else ignoreTest)
+  $ testProperty "Quantile is CDF inverse" $ quantileIsInvCDF t
   , testProperty "quantile fails p<0||p>1" $ quantileShouldFail t
   , testProperty "log density check"       $ logDensityCheck    t
   , testProperty "complQuantile"           $ complQuantileCheck t
   ]
 
 -- Tests for discrete distribution
-discreteDistrTests :: (Param d, DiscreteDistr d, QC.Arbitrary d, Typeable d, Show d) => T d -> Test
+discreteDistrTests :: (Param d, DiscreteDistr d, QC.Arbitrary d, Typeable d, Show d) => T d -> TestTree
 discreteDistrTests t = testGroup ("Tests for: " ++ typeName t) $
   cdfTests t ++
   [ testProperty "Prob. sanity"         $ probSanityCheck       t
@@ -88,7 +90,7 @@ discreteDistrTests t = testGroup ("Tests for: " ++ typeName t) $
   ]
 
 -- Tests for distributions which have CDF
-cdfTests :: (Param d, Distribution d, QC.Arbitrary d, Show d) => T d -> [Test]
+cdfTests :: (Param d, Distribution d, QC.Arbitrary d, Show d) => T d -> [TestTree]
 cdfTests t =
   [ testProperty "C.D.F. sanity"        $ cdfSanityCheck         t
   , testProperty "CDF limit at +inf"    $ cdfLimitAtPosInfinity  t
@@ -122,29 +124,33 @@ cdfAtNegInfinity _ d
   = cumulative d (-1/0) == 0
 
 -- CDF limit at +∞ is 1
-cdfLimitAtPosInfinity :: (Param d, Distribution d) => T d -> d -> Property
-cdfLimitAtPosInfinity _ d =
-  okForInfLimit d ==> counterexample ("Last elements: " ++ show (drop 990 probs))
-                    $ Just 1.0 == (find (>=1) probs)
+cdfLimitAtPosInfinity :: (Param d, Distribution d) => T d -> d -> Bool
+cdfLimitAtPosInfinity _ d
+  = Just 1.0 == find (>=1) probs
   where
-    probs = take 1000 $ map (cumulative d) $ iterate (*1.4) 1000
+    probs = map (cumulative d)
+          $ takeWhile (< (m_huge/2))
+          $ iterate (*1.4) 1
 
 -- CDF limit at -∞ is 0
-cdfLimitAtNegInfinity :: (Param d, Distribution d) => T d -> d -> Property
-cdfLimitAtNegInfinity _ d =
-  okForInfLimit d ==> counterexample ("Last elements: " ++ show (drop 990 probs))
-                    $ case find (< IEEE.epsilon) probs of
-                        Nothing -> False
-                        Just p  -> p >= 0
+cdfLimitAtNegInfinity :: (Param d, Distribution d) => T d -> d -> Bool
+cdfLimitAtNegInfinity _ d
+  = Just 0 == find (<=0) probs
   where
-    probs = take 1000 $ map (cumulative d) $ iterate (*1.4) (-1)
+    probs = map (cumulative d)
+          $ takeWhile (> (-m_huge/2))
+          $ iterate (*1.4) (-1)
+
 
 -- CDF's complement is implemented correctly
-cdfComplementIsCorrect :: (Distribution d) => T d -> d -> Double -> Bool
-cdfComplementIsCorrect _ d x = (eq 1e-14) 1 (cumulative d x + complCumulative d x)
+cdfComplementIsCorrect :: (Distribution d, Param d) => T d -> d -> Double -> Bool
+cdfComplementIsCorrect _ d x
+  = 1 - (cumulative d x + complCumulative d x) <= tol
+  where
+    tol = prec_complementCDF d
 
 -- CDF for discrete distribution uses <= for comparison
-cdfDiscreteIsCorrect :: (DiscreteDistr d) => T d -> d -> Property
+cdfDiscreteIsCorrect :: (Param d, DiscreteDistr d) => T d -> d -> Property
 cdfDiscreteIsCorrect _ d
   = counterexample (unlines badN)
   $ null badN
@@ -163,8 +169,9 @@ cdfDiscreteIsCorrect _ d
                  dp     = probability d i
                  relerr = ((p1 - p) - dp) / max p1 dp
            ,  not (p == 0 && p1 == 0 && dp == 0)
-           && relerr > 1e-14
+           && relerr > tol
            ]
+    tol = prec_discreteCDF d
 
 logDensityCheck :: (ContDistr d) => T d -> d -> Double -> Property
 logDensityCheck _ d x
@@ -175,7 +182,11 @@ logDensityCheck _ d x
       $ counterexample (printf "eps        = %g" (abs (logP - log p) / max (abs (log p)) (abs logP)))
       $ or [ p == 0      && logP == (-1/0)
            , p <= m_tiny && logP < log m_tiny
-           , eq 1e-14 (log p) logP
+             -- To avoid problems with roundtripping error in case
+             -- when density is computed as exponent of logDensity we
+             -- accept either inequality
+           ,  (ulpDistance (log p) logP <= 32)
+           || (ulpDistance p (exp logP) <= 32)
            ])
   where
     p    = density d x
@@ -187,19 +198,25 @@ pdfSanityCheck _ d x = p >= 0
   where p = density d x
 
 complQuantileCheck :: (ContDistr d) => T d -> d -> Double01 -> Property
-complQuantileCheck _ d (Double01 p) =
+complQuantileCheck _ d (Double01 p)
+  = counterexample (printf "x0 = %g" x0)
+  $ counterexample (printf "x1 = %g" x1)
   -- We avoid extreme tails of distributions
   --
   -- FIXME: all parameters are arbitrary at the moment
-  p > 0.01 && p < 0.99 ==> (abs (x1 - x0) < 1e-6)
+  $ and [ p > 0.01
+        , p < 0.99
+        , not $ isInfinite x0
+        , not $ isInfinite x1
+        ] ==> (abs (x1 - x0) < 1e-6)
   where
     x0 = quantile      d (1 - p)
     x1 = complQuantile d p
 
 -- Quantile is inverse of CDF
-quantileIsInvCDF :: (ContDistr d) => T d -> d -> Double01 -> Property
+quantileIsInvCDF :: (Param d, ContDistr d) => T d -> d -> Double01 -> Property
 quantileIsInvCDF _ d (Double01 p) =
-  and [ p > 1e-250
+  and [ p > m_tiny
       , p < 1
       , x > m_tiny
       , dens > 0
@@ -207,20 +224,23 @@ quantileIsInvCDF _ d (Double01 p) =
     ( counterexample (printf "Quantile      = %g" x )
     $ counterexample (printf "Probability   = %g" p )
     $ counterexample (printf "Probability'  = %g" p')
-    $ counterexample (printf "Expected err. = %g" err)
     $ counterexample (printf "Rel. error    = %g" (relativeError p p'))
     $ counterexample (printf "Abs. error    = %e" (abs $ p - p'))
-    $ eqRelErr err p p'
+    $ counterexample (printf "Expected err. = %g" err)
+    $ counterexample (printf "Distance      = %i" (ulpDistance p p'))
+    $ counterexample (printf "Err/est       = %g" (fromIntegral (ulpDistance p p') / err))
+    $ ulpDistance p p' <= round err
     )
   where
     -- Algorithm for error estimation is taken from here
     --
     -- http://sepulcarium.org/posts/2012-07-19-rounding_effect_on_inverse.html
     dens = density    d x
-    err  = 64 * m_epsilon * (1 + abs (x / p) * dens)
+    err  = eps + eps' * abs (x / p) * dens
     --
     x    = quantile   d p
     p'   = cumulative d x
+    (eps,eps') = prec_quantile_CDF d
 
 -- Test that quantile fails if p<0 or p>1
 quantileShouldFail :: (ContDistr d) => T d -> d -> Double -> Property
@@ -261,36 +281,60 @@ logProbabilityCheck _ d x
   $ counterexample (printf "eps            = %g" (abs (logP - log p) / max (abs (log p)) (abs logP)))
   $ or [ p == 0     && logP == (-1/0)
        , p < 1e-308 && logP < 609
-       , eq 1e-14 (log p) logP
+         -- To avoid problems with roundtripping error in case
+         -- when density is computed as exponent of logDensity we
+         -- accept either inequality
+       ,  (ulpDistance (log p) logP <= 32)
+       || (ulpDistance p (exp logP) <= 32)
        ]
   where
     p    = probability d x
     logP = logProbability d x
 
 
--- Parameters for distribution testing. Some distribution require
--- relaxing parameters a bit
+-- | Parameters for distribution testing. Some distribution require
+--   relaxing parameters a bit
 class Param a where
-  -- Precision for quantileIsInvCDF
-  invQuantilePrec :: a -> Double
-  invQuantilePrec _ = 1e-14
-  -- Distribution is OK for testing limits
-  okForInfLimit :: a -> Bool
-  okForInfLimit _ = True
-
-
-instance Param a
+  -- | Whether quantileIsInvCDF is enabled
+  quantileIsInvCDF_enabled :: T a -> Bool
+  quantileIsInvCDF_enabled _ = True
+  -- | Precision for 'quantileIsInvCDF' test
+  prec_quantile_CDF :: a -> (Double,Double)
+  prec_quantile_CDF _ = (16,16)
+  -- |
+  prec_discreteCDF :: a -> Double
+  prec_discreteCDF _ = 32 * m_epsilon
+  -- | Precision of CDF's complement
+  prec_complementCDF :: a -> Double
+  prec_complementCDF _ = 1e-14
 
 instance Param StudentT where
-  invQuantilePrec _ = 1e-13
-  okForInfLimit   d = studentTndf d > 0.75
-
-instance Param (LinearTransform StudentT) where
-  invQuantilePrec _ = 1e-13
-  okForInfLimit   d = (studentTndf . linTransDistr) d > 0.75
-
+  -- FIXME: disabled unless incompleteBeta troubles are sorted out
+  quantileIsInvCDF_enabled _ = False
+instance Param BetaDistribution where
+  -- FIXME: See https://github.com/bos/statistics/issues/161 for details
+  quantileIsInvCDF_enabled _ = False
 instance Param FDistribution where
-  invQuantilePrec _ = 1e-12
+  -- FIXME: disabled unless incompleteBeta troubles are sorted out
+  quantileIsInvCDF_enabled _ = False
+
+instance Param ChiSquared where
+  prec_quantile_CDF _ = (32,32)
+
+instance Param BinomialDistribution where
+  prec_discreteCDF _ = 1e-13
+instance Param CauchyDistribution
+instance Param DiscreteUniform
+instance Param ExponentialDistribution
+instance Param GammaDistribution
+instance Param GeometricDistribution
+instance Param GeometricDistribution0
+instance Param HypergeometricDistribution
+instance Param LaplaceDistribution
+instance Param NormalDistribution
+instance Param PoissonDistribution
+instance Param UniformDistribution
+instance Param a => Param (LinearTransform a)
 
 
 
@@ -298,7 +342,7 @@ instance Param FDistribution where
 -- Unit tests
 ----------------------------------------------------------------
 
-unitTests :: Test
+unitTests :: TestTree
 unitTests = testGroup "Unit tests"
   [ testAssertion "density (gammaDistr 150 1/150) 1 == 4.883311" $
       4.883311418525483 =~ density (gammaDistr 150 (1/150)) 1

@@ -1,5 +1,5 @@
 name:           statistics
-version:        0.15.0.0
+version:        0.15.2.0
 synopsis:       A library of statistical types, data, and functions
 description:
   This library provides a number of common functions and types useful
@@ -44,7 +44,19 @@ extra-source-files:
   tests/Tests/Math/gen.py
   tests/utils/Makefile
   tests/utils/fftw.c
-tested-with: GHC==7.4.2, GHC==7.6.3, GHC==7.8.3, GHC==7.10.3, GHC==8.0.2, GHC==8.2.2, GHC==8.4.3
+
+tested-with:
+    GHC ==7.4.2
+     || ==7.6.3
+     || ==7.8.4
+     || ==7.10.3
+     || ==8.0.2
+     || ==8.2.2
+     || ==8.4.4
+     || ==8.6.5
+     || ==8.8.1
+  , GHCJS ==8.4
+
 
 library
   exposed-modules:
@@ -102,9 +114,9 @@ library
                , mwc-random              >= 0.13.0.0
                  --
                , aeson                   >= 0.6.0.0
+               , async                   >= 2.2.2 && <2.3
                , deepseq                 >= 1.1.0.2
                , binary                  >= 0.5.1.0
-               , monad-par               >= 0.3.4
                , exceptions              >= 0.10
                , primitive               >= 0.3
                , dense-linear-algebra    >= 0.1 && <0.2
@@ -113,6 +125,10 @@ library
                , vector-th-unbox
                , vector-binary-instances >= 0.2.1
                , data-default-class      >= 0.1.2
+  if !impl(ghcjs)
+    build-depends:
+      monad-par               >= 0.3.4
+  -- Older GHC
   if impl(ghc < 7.6)
     build-depends:
       ghc-prim
@@ -143,7 +159,6 @@ test-suite tests
   build-depends: base
                , statistics
                , dense-linear-algebra
-               , HUnit
                , QuickCheck >= 2.7.5
                , binary
                , erf
@@ -152,9 +167,10 @@ test-suite tests
                , math-functions
                , mwc-random
                , primitive
-               , test-framework
-               , test-framework-hunit
-               , test-framework-quickcheck2
+               , tasty
+               , tasty-hunit
+               , tasty-quickcheck
+               , tasty-expected-failure
                , vector
                , vector-algorithms
 

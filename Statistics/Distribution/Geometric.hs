@@ -39,6 +39,7 @@ import Data.Binary         (Binary(..))
 import Data.Data           (Data, Typeable)
 import GHC.Generics        (Generic)
 import Numeric.MathFunctions.Constants (m_pos_inf, m_neg_inf)
+import Numeric.SpecFunctions           (log1p,expm1)
 import qualified System.Random.MWC.Distributions as MWC
 
 import qualified Statistics.Distribution as D
@@ -73,7 +74,8 @@ instance Binary GeometricDistribution where
 
 
 instance D.Distribution GeometricDistribution where
-    cumulative = cumulative
+    cumulative      = cumulative
+    complCumulative = complCumulative
 
 instance D.DiscreteDistr GeometricDistribution where
     probability (GD s) n
@@ -117,7 +119,14 @@ cumulative (GD s) x
   | x < 1        = 0
   | isInfinite x = 1
   | isNaN      x = error "Statistics.Distribution.Geometric.cumulative: NaN input"
-  | otherwise    = 1 - (1-s) ^ (floor x :: Int)
+  | otherwise    = negate $ expm1 $ fromIntegral (floor x :: Int) * log1p (-s)
+
+complCumulative :: GeometricDistribution -> Double -> Double
+complCumulative (GD s) x
+  | x < 1        = 1
+  | isInfinite x = 0
+  | isNaN      x = error "Statistics.Distribution.Geometric.cumulative: NaN input"
+  | otherwise    = exp $ fromIntegral (floor x :: Int) * log1p (-s)
 
 
 -- | Create geometric distribution.
@@ -159,7 +168,8 @@ instance Binary GeometricDistribution0 where
 
 
 instance D.Distribution GeometricDistribution0 where
-    cumulative (GD0 s) x = cumulative (GD s) (x + 1)
+    cumulative      (GD0 s) x = cumulative      (GD s) (x + 1)
+    complCumulative (GD0 s) x = complCumulative (GD s) (x + 1)
 
 instance D.DiscreteDistr GeometricDistribution0 where
     probability    (GD0 s) n = D.probability    (GD s) (n + 1)

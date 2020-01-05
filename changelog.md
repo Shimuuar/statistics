@@ -1,7 +1,6 @@
 ## Changes in NEXTVERSION
 
  * New method for error handling is used. Functions which may return have return
-   type of the form `MonadThrow m ⇒ m a` which allow both `Maybe` & Co based
    error handling and converting errors into exceptions via `Partial` newtype.
 
  * `welfordMean` is dropped. It doesn't improve precision compared to naive
@@ -9,6 +8,27 @@
 
  * `fast...` variants of calculation of variance are removed. All one-pass
    algorithms are moved to `monoid-statistics`.
+
+## Changes in 0.15.2.0
+ * Test suite is finally fixed (#42, #123). It took very-very-very long
+   time but finally happened.
+
+ * Avoid loss of precision when computing CDF for exponential districution.
+
+ * Avoid loss of precision when computing CDF for geometric districution. Add
+   complement of CDF.
+
+
+## Changes in 0.15.1.1
+
+ * Fix build for GHC8.0 & 7.10
+
+
+## Changes in 0.15.1.0
+
+ * GHCJS support
+
+ * Concurrent resampling now uses `async` instead of hand-rolled primitives
 
 
 ## Changes in 0.15.0.0
