@@ -116,6 +116,7 @@ library
                , aeson                   >= 0.6.0.0
                , async                   >= 2.2.2 && <2.3
                , deepseq                 >= 1.1.0.2
+               , lens                    >= 4.18
                , binary                  >= 0.5.1.0
                , exceptions              >= 0.10
                , primitive               >= 0.3

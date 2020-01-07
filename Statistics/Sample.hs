@@ -51,17 +51,26 @@ module Statistics.Sample
     -- $references
     ) where
 
+import Control.Lens
 import Control.Monad       (liftM)
 import Control.Monad.Catch (MonadThrow(..))
 import Statistics.Function (minMax)
 import Statistics.Sample.Internal (robustSumVar, sum)
 import Statistics.Types.Internal  (Sample,WeightedSample,StatisticsException(..))
+import Data.Monoid         (Endo(..))
 import qualified Data.Vector          as V
 import qualified Data.Vector.Generic  as G
 import qualified Data.Vector.Unboxed  as U
 import qualified Data.Vector.Storable as S
+import qualified Numeric.Sum as Sum
 -- Operator ^ will be overridden
 import Prelude hiding ((^), sum)
+
+
+-- | Numerically stable sum. It uses KBN algorithm internally
+stableSumOf :: Getting (Endo (Endo Sum.KBNSum)) s Double -> s -> Double
+{-# INLINE stableSumOf #-}
+stableSumOf l = Sum.kbn . foldlOf' l Sum.add Sum.zero
 
 -- | /O(n)/ Range. The difference between the largest and smallest
 -- elements of a sample.
