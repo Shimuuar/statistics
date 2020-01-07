@@ -42,8 +42,9 @@ module Statistics.Resampling
 import Data.Aeson (FromJSON, ToJSON)
 import Control.Applicative
 import Control.Concurrent.Async (forConcurrently_)
-import Control.Monad (forM_, forM, replicateM, liftM2)
+import Control.Monad (forM_, forM, replicateM, liftM, liftM2)
 import Control.Monad.Primitive (PrimMonad(..))
+import Control.Monad.Catch     (MonadThrow(..))
 import Data.Binary (Binary(..))
 import Data.Data (Data, Typeable)
 import Data.Vector.Algorithms.Intro (sort)
@@ -61,7 +62,7 @@ import GHC.Generics (Generic)
 import Numeric.Sum (Summation(..), kbn)
 import Statistics.Function (indices)
 import Statistics.Sample (mean, stdDev, varianceML, variance)
-import Statistics.Types (Sample)
+import Statistics.Types (Sample, StatisticsException(..), partial)
 import System.Random.MWC (Gen, GenIO, initialize, uniformR, uniformVector)
 
 
@@ -114,10 +115,10 @@ data Estimator = Mean
 
 -- | Run an 'Estimator' over a sample.
 estimate :: Estimator -> Sample -> Double
-estimate Mean           = mean
-estimate Variance       = variance
-estimate VarianceML     = varianceML
-estimate StdDev         = stdDev
+estimate Mean           = partial . mean
+estimate Variance       = partial . variance
+estimate VarianceML     = partial . varianceML
+estimate StdDev         = partial . stdDev
 estimate (Function est) = est
 
 
@@ -204,21 +205,21 @@ resampleVector gen v
 
 -- | /O(n) or O(n^2)/ Compute a statistical estimate repeatedly over a
 -- sample, each time omitting a successive element.
-jackknife :: Estimator -> Sample -> U.Vector Double
+jackknife :: MonadThrow m => Estimator -> Sample -> m (U.Vector Double)
 jackknife Mean sample             = jackknifeMean sample
 jackknife Variance sample         = jackknifeVariance sample
 jackknife VarianceML sample       = jackknifeVarianceML sample
-jackknife StdDev sample = jackknifeStdDev sample
+jackknife StdDev sample           = jackknifeStdDev sample
 jackknife (Function est) sample
   | G.length sample == 1 = singletonErr "jackknife"
-  | otherwise            = U.map f . indices $ sample
+  | otherwise            = return $ U.map f . indices $ sample
   where f i = est (dropAt i sample)
 
 -- | /O(n)/ Compute the jackknife mean of a sample.
-jackknifeMean :: Sample -> U.Vector Double
+jackknifeMean :: MonadThrow m => Sample -> m (U.Vector Double)
 jackknifeMean samp
-  | len == 1  = singletonErr "jackknifeMean"
-  | otherwise = G.map (/l) $ G.zipWith (+) (pfxSumL samp) (pfxSumR samp)
+  | len <= 1  = singletonErr "jackknifeMean"
+  | otherwise = return $ G.map (/l) $ G.zipWith (+) (pfxSumL samp) (pfxSumR samp)
   where
     l   = fromIntegral (len - 1)
     len = G.length samp
@@ -226,17 +227,18 @@ jackknifeMean samp
 -- | /O(n)/ Compute the jackknife variance of a sample with a
 -- correction factor @c@, so we can get either the regular or
 -- \"unbiased\" variance.
-jackknifeVariance_ :: Double -> Sample -> U.Vector Double
+jackknifeVariance_ :: MonadThrow m => Double -> Sample -> m (U.Vector Double)
 jackknifeVariance_ c samp
-  | len == 1  = singletonErr "jackknifeVariance"
-  | otherwise = G.zipWith4 go als ars bls brs
+  | len <= 1  = singletonErr "jackknifeVariance"
+  | otherwise = return $ G.zipWith4 go als ars bls brs
   where
     als = pfxSumL . G.map goa $ samp
     ars = pfxSumR . G.map goa $ samp
     goa x = v * v where v = x - m
     bls = pfxSumL . G.map (subtract m) $ samp
     brs = pfxSumR . G.map (subtract m) $ samp
-    m = mean samp
+    -- NOTE: OK, we check sample size
+    m = partial $ mean samp
     n = fromIntegral len
     go al ar bl br = (al + ar - (b * b) / q) / (q - c)
       where b = bl + br
@@ -244,18 +246,18 @@ jackknifeVariance_ c samp
     len = G.length samp
 
 -- | /O(n)/ Compute the unbiased jackknife variance of a sample.
-jackknifeVariance :: Sample -> U.Vector Double
+jackknifeVariance :: MonadThrow m => Sample -> m (U.Vector Double)
 jackknifeVariance samp
   | G.length samp == 2  = singletonErr "jackknifeVariance"
   | otherwise           = jackknifeVariance_ 1 samp
 
 -- | /O(n)/ Compute the jackknife variance of a sample.
-jackknifeVarianceML :: Sample -> U.Vector Double
+jackknifeVarianceML :: MonadThrow m => Sample -> m (U.Vector Double)
 jackknifeVarianceML = jackknifeVariance_ 0
 
 -- | /O(n)/ Compute the jackknife standard deviation of a sample.
-jackknifeStdDev :: Sample -> U.Vector Double
-jackknifeStdDev = G.map sqrt . jackknifeVariance
+jackknifeStdDev :: MonadThrow m => Sample -> m (U.Vector Double)
+jackknifeStdDev = liftM (G.map sqrt) . jackknifeVariance
 
 pfxSumL :: U.Vector Double -> U.Vector Double
 pfxSumL = G.map kbn . G.scanl add zero
@@ -267,9 +269,10 @@ pfxSumR = G.tail . G.map kbn . G.scanr (flip add) zero
 dropAt :: U.Unbox e => Int -> U.Vector e -> U.Vector e
 dropAt n v = U.slice 0 n v U.++ U.slice (n+1) (U.length v - n - 1) v
 
-singletonErr :: String -> a
-singletonErr func = error $
-                    "Statistics.Resampling." ++ func ++ ": not enough elements in sample"
+singletonErr :: MonadThrow m => String -> m a
+singletonErr func = throwM $ InvalidSample
+  ("Statistics.Resampling." ++ func)
+  "not enough elements in sample"
 
 -- | Split a generator into several that can run independently.
 splitGen :: Int -> GenIO -> IO [GenIO]

@@ -84,7 +84,7 @@ library
     Statistics.Function
     Statistics.Quantile
     -- Statistics.Regression
-    -- Statistics.Resampling
+    Statistics.Resampling
     -- Statistics.Resampling.Bootstrap
     Statistics.Sample
     Statistics.Sample.Internal
