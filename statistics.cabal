@@ -111,6 +111,7 @@ library
                , base-orphans            >= 0.6 && <0.9
                  --
                , math-functions          >= 0.3
+               , monoid-statistics
                , mwc-random              >= 0.13.0.0
                  --
                , aeson                   >= 0.6.0.0
