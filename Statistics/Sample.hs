@@ -67,7 +67,8 @@ import qualified Numeric.Sum as Sum
 import Prelude hiding ((^), sum)
 
 
--- | Numerically stable sum. It uses KBN algorithm internally
+-- | /O(n)/ Numerically stable sum. It uses KBN algorithm for
+--   compensated summation.
 stableSumOf :: Getting (Endo (Endo Sum.KBNSum)) s Double -> s -> Double
 {-# INLINE stableSumOf #-}
 stableSumOf l = Sum.kbn . foldlOf' l Sum.add Sum.zero
