@@ -18,7 +18,10 @@ module Statistics.Sample
       Sample
     , WeightedSample
     -- * Descriptive functions
-    , range
+    , stableSumOf
+    , reduceSampleOf
+    , minMaxOf
+    , rangeOf
 
     -- * Statistics of location
     , mean
@@ -51,12 +54,15 @@ module Statistics.Sample
     -- $references
     ) where
 
+import Control.Applicative
 import Control.Lens
 import Control.Monad       (liftM)
 import Control.Monad.Catch (MonadThrow(..))
 import Statistics.Function (minMax)
 import Statistics.Sample.Internal (robustSumVar, sum)
 import Statistics.Types.Internal  (Sample,WeightedSample,StatisticsException(..))
+import Statistics.Monoid.Class
+import Statistics.Monoid.Numeric
 import Data.Monoid         (Endo(..))
 import qualified Data.Vector          as V
 import qualified Data.Vector.Generic  as G
@@ -73,13 +79,36 @@ stableSumOf :: Getting (Endo (Endo Sum.KBNSum)) s Double -> s -> Double
 {-# INLINE stableSumOf #-}
 stableSumOf l = Sum.kbn . foldlOf' l Sum.add Sum.zero
 
+-- | /O(n)/ Compute statistics for sample using some monoidal
+--   accumulator. For examle mean could be defined as:
+--
+-- > meanOf = calcMean . asMeanKBN . reduceSampleOf
+reduceSampleOf :: (StatMonoid m a) => Getting (Endo (Endo m)) s a -> s -> m
+{-# INLINE reduceSampleOf #-}
+reduceSampleOf l = foldlOf' l addValue mempty
+
+-- | /O(n)/ Compute minimum and maximum value of sample.
+minMaxOf
+  :: (Ord a, MonadThrow m)
+  => Getting (Endo (Endo (Pair (Min a) (Max a)))) s a
+  -> s -> m (a,a)
+{-# INLINE minMaxOf #-}
+minMaxOf l xs
+  = maybe (modErr "minMaxOf" "Empty sample") return
+  $ liftA2 (,) (calcMin minAcc) (calcMax maxAcc)
+  where
+    Pair minAcc maxAcc = reduceSampleOf l xs
+
 -- | /O(n)/ Range. The difference between the largest and smallest
--- elements of a sample.
-range :: (G.Vector v Double, MonadThrow m) => v Double -> m Double
-range xs
-  | G.null xs = modErr "range" "Empty sample"
-  | otherwise = return $! let (lo , hi) = minMax xs in hi - lo
-{-# INLINE range #-}
+--   elements of a sample.
+rangeOf
+  :: (Ord a, Num a, MonadThrow m)
+  => Getting (Endo (Endo (Pair (Min a) (Max a)))) s a
+  -> s -> m a
+{-# INLINE rangeOf #-}
+rangeOf l xs = do
+  (x1,x2) <- minMaxOf l xs
+  return $! x2 - x1
 
 -- | /O(n)/ Arithmetic mean.  This uses Kahan-Babuška-Neumaier
 --   summation.
@@ -413,7 +442,7 @@ correlation xy
     (muY,varY) = undefined -- meanVariance ys
 {-# SPECIALIZE correlation :: MonadThrow m => U.Vector (Double,Double) -> m Double #-}
 {-# SPECIALIZE correlation :: MonadThrow m => V.Vector (Double,Double) -> m Double #-}
-  
+
 -- | Pair two samples. It's like 'G.zip' but requires that both
 --   samples have equal size.
 pair :: (G.Vector v a, G.Vector v b, G.Vector v (a,b), MonadThrow m)
