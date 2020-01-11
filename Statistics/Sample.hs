@@ -98,7 +98,7 @@ minMaxOf
   -> s -> m (a,a)
 {-# INLINE minMaxOf #-}
 minMaxOf l xs
-  = maybe (modErr "minMaxOf" "Empty sample") return
+  = liftErr "minMaxOf" "Empty sample"
   $ liftA2 (,) (calcMin minAcc) (calcMax maxAcc)
   where
     Pair minAcc maxAcc = reduceSampleOf l xs
@@ -119,10 +119,9 @@ rangeOf l xs = do
 meanOf :: (Real a, MonadThrow m)
        => Getting (Endo (Endo MeanKBN)) s a -> s -> m Double
 {-# INLINE meanOf #-}
-meanOf l xs = 
-  case calcMean $ asMeanKBN $ reduceSampleOf l xs of
-    Just m  -> return m
-    Nothing -> modErr "mean" "Empty sample"
+meanOf l xs
+  = liftErr "mean" "Empty sample"
+  $ calcMean $ asMeanKBN $ reduceSampleOf l xs
 
 -- | /O(n)/ Arithmetic mean for weighted sample. It uses a single-pass
 --   algorithm analogous to the one used by 'welfordMean'.
@@ -130,20 +129,19 @@ weightedMeanOf
   :: (Real w, Real a, MonadThrow m)
   => Getting (Endo (Endo WMeanKBN)) s (Weighted w a) -> s -> m Double
 {-# INLINE weightedMeanOf #-}
-weightedMeanOf l xs =
-  case calcMean $ asWMeanKBN $ reduceSampleOf l xs of
-    Just m  -> return m
-    Nothing -> modErr "mean" "Empty sample"
+weightedMeanOf l xs
+  = liftErr "weightedMeanOf" "Empty sample"
+  $ calcMean $ asWMeanKBN $ reduceSampleOf l xs
     
 -- | /O(n)/ Harmonic mean.
 harmonicMeanOf
   :: (MonadThrow m, Real a, Fractional a)
   => Getting (Endo (Endo MeanKBN)) s a -> s -> m Double
 {-# INLINE harmonicMeanOf #-}
-harmonicMeanOf l xs = do
-  case calcMean acc of
-    Just m  -> return $! fromIntegral (calcCount acc) / m
-    Nothing -> modErr "harmonicMean" "Empty sample"
+harmonicMeanOf l xs
+  = liftErr "harmonicMeanOf" "Empty sample"
+  $ do m <- calcMean acc
+       return $! fromIntegral (calcCount acc) / m
   where
     acc = asMeanKBN $ reduceSampleOf (l . to recip) xs
 
@@ -152,7 +150,10 @@ geometricMeanOf
   :: (MonadThrow m, RealFloat a)
   => Getting (Endo (Endo MeanKBN)) s a -> s -> m Double
 {-# INLINE geometricMeanOf #-}
-geometricMeanOf l = liftM exp . meanOf (l . to log)
+geometricMeanOf l
+  = liftErr "geometricMeanOf" "Empty sample"
+  . fmap exp
+  . meanOf (l . to log)
 
 -- | Compute the /k/th central moment of a sample.  The central moment
 -- is also known as the moment about the mean.
@@ -505,6 +506,10 @@ x ^ n = x * (x ^ (n-1))
 -- yielding to boxed returns and heap checks.
 
 -- -}
+
+liftErr :: MonadThrow m => String -> String -> Maybe a -> m a
+liftErr f err = maybe (modErr f err) return
+{-# INLINE liftErr #-}
 
 modErr :: MonadThrow m => String -> String -> m a
 modErr f err = throwM $ InvalidSample ("Statistics.Sample." ++ f) err
