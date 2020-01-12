@@ -48,6 +48,7 @@ module Statistics.Sample (
   ) where
 
 import Control.Applicative
+import Control.Arrow       ((>>>))
 import Control.Lens
 import Control.Monad       (liftM)
 import Control.Monad.Catch (MonadThrow(..))
@@ -317,7 +318,7 @@ varianceEstOf l xs
   | Just est <- meanEstOf l xs
   , calcCount est > 1
     = let m = getMean est
-          s = stableSumOf (l . to (subtract m >> square)) xs
+          s = stableSumOf (l . to (subtract m >>> square)) xs
       in return $! SampleVariance (calcCount est) m s
   | otherwise
     = modErr "varianceEstOf" "Insufficient sample size"
