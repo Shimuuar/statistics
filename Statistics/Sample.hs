@@ -120,8 +120,18 @@ meanOf :: (Real a, MonadThrow m)
        => Getting (Endo (Endo MeanKBN)) s a -> s -> m Double
 {-# INLINE meanOf #-}
 meanOf l xs
-  = liftErr "mean" "Empty sample"
+  = liftErr "meanOf" "Empty sample"
   $ calcMean $ asMeanKBN $ reduceSampleOf l xs
+
+-- | /O(n)/ Arithmetic mean.  This uses Kahan-Babuška-Neumaier
+--   summation.
+meanEstOf :: (Real a, MonadThrow m)
+          => Getting (Endo (Endo MeanKBN)) s a -> s -> m SampleMean
+{-# INLINE meanEstOf #-}
+meanEstOf l xs
+  = liftErr "meanEstOf" "Empty sample"
+  $ do let acc = asMeanKBN $ reduceSampleOf l xs
+       SampleMean (calcCount acc) <$> calcMean acc
 
 -- | /O(n)/ Arithmetic mean for weighted sample. It uses a single-pass
 --   algorithm analogous to the one used by 'welfordMean'.
