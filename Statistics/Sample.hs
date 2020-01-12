@@ -348,15 +348,16 @@ stdDevMLOf
 {-# INLINE stdDevMLOf #-}
 stdDevMLOf l = liftM sqrt . varianceMLOf l
 
--- -- | Standard error of the mean. This is the standard deviation
--- --   divided by the square root of the sample size.
--- stdErrMean :: (G.Vector v Double, MonadThrow m) => v Double -> m Double
--- stdErrMean xs = do
---   s <- stdDev xs
---   return $! s / (sqrt . fromIntegral . G.length) xs
--- {-# SPECIALIZE stdErrMean :: MonadThrow m => V.Vector Double -> m Double #-}
--- {-# SPECIALIZE stdErrMean :: MonadThrow m => U.Vector Double -> m Double #-}
--- {-# SPECIALIZE stdErrMean :: MonadThrow m => S.Vector Double -> m Double #-}
+-- | Standard error of the mean. This is the standard deviation
+--   divided by the square root of the sample size.
+-- stdErrMeanOf :: (MonadThrow m) => v Double -> m Double
+stdErrMeanOf
+  :: (Real a, MonadThrow m)
+  => Getting (Endo (Endo MeanKBN)) s a -> s -> m Double
+{-# INLINE stdErrMeanOf #-}
+stdErrMeanOf l xs = do
+  est <- meanEstOf l xs
+  return $! getMean est / (sqrt . fromIntegral . calcCount) est
 
 
 data SampleMean = SampleMean !Int !Double
