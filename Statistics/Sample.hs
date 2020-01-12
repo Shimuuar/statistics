@@ -387,51 +387,6 @@ instance HasVariance SampleVariance where
   getVarianceML (SampleVariance n _ s) = s / fromIntegral (n - 1)
 
 
--- -- data SampleVariance = SampleVariance
--- --   { sampleSize  :: !Int
--- --   , sampleMean  :: !Double
--- --   , sampleSumSq :: !Double
--- --   }
-
--- -- meanVariance :: (G.Vector v Double) => v Double -> SampleVariance
--- -- meanVariance xs = SampleVariance
--- --   { sampleSize  = n
--- --   , sampleMean  = m
--- --   , sampleSumSq = robustSumVar m xs
--- --   }
--- --   where
--- --     n             = G.length xs
--- --     m | n == 0    = 0
--- --       | otherwise = sum xs / fromIntegral n
--- -- {-# SPECIALIZE meanVariance :: V.Vector Double -> SampleVariance #-}
--- -- {-# SPECIALIZE meanVariance :: U.Vector Double -> SampleVariance #-}
--- -- {-# SPECIALIZE meanVariance :: S.Vector Double -> SampleVariance #-}
-
--- -- -- | Calculate mean and maximum likelihood estimate of variance. This
--- -- -- function should be used if both mean and variance are required
--- -- -- since it will calculate mean only once.
--- -- meanVariance ::  (G.Vector v Double) => v Double -> (Double,Double)
--- -- meanVariance samp
--- --   | n > 1     = (m, robustSumVar m samp / fromIntegral n)
--- --   | otherwise = (m, 0)
--- --     where
--- --       n = G.length samp
--- --       m = mean samp
--- -- {-# SPECIALIZE meanVariance :: U.Vector Double -> (Double,Double) #-}
--- -- {-# SPECIALIZE meanVariance :: V.Vector Double -> (Double,Double) #-}
-
--- -- -- | Calculate mean and unbiased estimate of variance. This
--- -- -- function should be used if both mean and variance are required
--- -- -- since it will calculate mean only once.
--- -- meanVarianceUnb :: (G.Vector v Double) => v Double -> (Double,Double)
--- -- meanVarianceUnb samp
--- --   | n > 1     = (m, robustSumVar m samp / fromIntegral (n-1))
--- --   | otherwise = (m, 0)
--- --     where
--- --       n = G.length samp
--- --       m = mean samp
--- -- {-# SPECIALIZE meanVarianceUnb :: U.Vector Double -> (Double,Double) #-}
--- -- {-# SPECIALIZE meanVarianceUnb :: V.Vector Double -> (Double,Double) #-}
 
 -- -- -- | Standard deviation.  This is simply the square root of the
 -- -- -- unbiased estimate of the variance.
@@ -466,53 +421,63 @@ instance HasVariance SampleVariance where
 -- -- {-# SPECIALIZE varianceWeighted :: V.Vector (Double,Double) -> Double #-}
 
 
--- -- | Covariance of sample of pairs. For empty sample it's set to
--- --   zero
--- covariance :: (G.Vector v (Double,Double), G.Vector v Double, MonadThrow m)
---            => v (Double,Double)
---            -> m Double
--- covariance xy
---   | n <= 0    = modErr "covariance" "Insufficient sample size"
---   | otherwise = do
---       muX <- mean xs
---       muY <- mean ys
---       mean $ G.zipWith (*)
---         (G.map (\x -> x - muX) xs)
---         (G.map (\y -> y - muY) ys)
---    where
---      n       = G.length xy
---      (xs,ys) = G.unzip xy
--- {-# SPECIALIZE covariance :: MonadThrow m => U.Vector (Double,Double) -> m Double #-}
--- {-# SPECIALIZE covariance :: MonadThrow m => V.Vector (Double,Double) -> m Double #-}
+-- | Covariance of sample of pairs. 
+covarianceOf
+  :: (MonadThrow m)
+  => (forall r. Getting (Endo (Endo r)) s (Double,Double)) -> s -> m Double
+{-# INLINE covarianceOf #-}
+covarianceOf l xy
+  | n <= 0    = modErr "covarianceOf" "Insufficient sample size"
+  | otherwise = return $! sumCov / fromIntegral n
+  where
+    -- Compute mean of each sample separately
+    Cov n sumX sumY = doubleMeanOf l xy
+    muX             = Sum.kbn sumX / fromIntegral n
+    muY             = Sum.kbn sumY / fromIntegral n
+    -- Compute covariance
+    sumCov = covarianceSumOf l muX muY xy
 
--- -- | Correlation coefficient for sample of pairs. Also known as
--- --   Pearson's correlation. For empty sample it's set to zero.
--- correlation :: (G.Vector v (Double,Double), G.Vector v Double, MonadThrow m)
---            => v (Double,Double)
---            -> m Double
--- correlation xy
---   | n <= 1    = modErr "correlation" "Insufficient sample size"
---   | otherwise = do
---       cov <- mean $ G.zipWith (*)
---         (G.map (\x -> x - muX) xs)
---         (G.map (\y -> y - muY) ys)
---       return $! cov / sqrt (varX * varY)
---   where
---     n       = G.length xy
---     (xs,ys) = G.unzip  xy
---     (muX,varX) = undefined -- meanVariance xs
---     (muY,varY) = undefined -- meanVariance ys
--- {-# SPECIALIZE correlation :: MonadThrow m => U.Vector (Double,Double) -> m Double #-}
--- {-# SPECIALIZE correlation :: MonadThrow m => V.Vector (Double,Double) -> m Double #-}
+data Cov = Cov !Int {-# UNPACK #-} !Sum.KBNSum {-# UNPACK #-} !Sum.KBNSum
 
--- -- | Pair two samples. It's like 'G.zip' but requires that both
--- --   samples have equal size.
--- pair :: (G.Vector v a, G.Vector v b, G.Vector v (a,b), MonadThrow m)
---      => v a -> v b -> m (v (a,b))
--- pair va vb
---   | G.length va == G.length vb = return $ G.zip va vb
---   | otherwise                  = modErr "pair" "vectors must have same length"
--- {-# INLINE pair #-}
+correlationOf
+  :: (MonadThrow m)
+  => (forall r. Getting (Endo (Endo r)) s (Double,Double)) -> s -> m Double
+{-# INLINE correlationOf #-}
+correlationOf l xy
+  | n <= 1    = modErr "correlationOf" "Insufficient sample size"
+  | varX == 0 = modErr "correlationOf" "Sample X has 0 variance"
+  | varY == 0 = modErr "correlationOf" "Sample Y has 0 variance"
+  | otherwise = return $! sumCov
+                        / (fromIntegral n * sqrt (varX * varY))
+  where
+    -- Mean of each sample
+    Cov n sumX sumY = doubleMeanOf l xy
+    muX             = Sum.kbn sumX / fromIntegral n
+    muY             = Sum.kbn sumY / fromIntegral n
+    -- Unbiased variance for each sample
+    V sX sY = foldlOf' l
+      (\(V sx sy) (x,y) -> V (addValue sx (square $ x - muX))
+                             (addValue sy (square $ y - muY)))
+      (V mempty mempty)
+      xy
+    varX = Sum.kbn sX / fromIntegral (n - 1)
+    varY = Sum.kbn sY / fromIntegral (n - 1)
+    -- Compute correlation
+    sumCov = covarianceSumOf l muX muY xy
+
+-- Compute mean of each sample
+doubleMeanOf :: (forall r. Getting (Endo (Endo r)) s (Double,Double)) -> s -> Cov
+{-# INLINE doubleMeanOf #-}
+doubleMeanOf l = foldlOf' l
+  (\(Cov i sx sy) (x,y) -> Cov (i+1) (addValue sx x) (addValue sy y))
+  (Cov 0 mempty mempty)
+
+covarianceSumOf
+  :: (forall r. Getting (Endo (Endo r)) s (Double,Double))
+  -> Double -> Double -> s -> Double
+{-# INLINE covarianceSumOf #-}
+covarianceSumOf l muX muY
+  = stableSumOf (l . to (\(x,y) -> (x-muX)*(y-muY)))
 
 -- ------------------------------------------------------------------------
 -- -- Helper code. Monomorphic unpacked accumulators.
@@ -523,32 +488,6 @@ x ^ 1 = x
 x ^ n = x * (x ^ (n-1))
 {-# INLINE (^) #-}
 
--- -- don't support polymorphism, as we can't get unboxed returns if we use it.
--- data T = T {-# UNPACK #-}!Double {-# UNPACK #-}!Int
-
--- data T1 = T1 {-# UNPACK #-}!Int {-# UNPACK #-}!Double {-# UNPACK #-}!Double
-
--- {-
-
--- Consider this core:
-
--- with data T a = T !a !Int
-
--- $wfold :: Double#
---                -> Int#
---                -> Int#
---                -> (# Double, Int# #)
-
--- and without,
-
--- $wfold :: Double#
---                -> Int#
---                -> Int#
---                -> (# Double#, Int# #)
-
--- yielding to boxed returns and heap checks.
-
--- -}
 
 liftErr :: MonadThrow m => String -> String -> Maybe a -> m a
 liftErr f err = maybe (modErr f err) return
