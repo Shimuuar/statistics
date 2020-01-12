@@ -132,7 +132,7 @@ weightedMeanOf
 weightedMeanOf l xs
   = liftErr "weightedMeanOf" "Empty sample"
   $ calcMean $ asWMeanKBN $ reduceSampleOf l xs
-    
+
 -- | /O(n)/ Harmonic mean.
 harmonicMeanOf
   :: (MonadThrow m, Real a, Fractional a)
@@ -163,20 +163,21 @@ geometricMeanOf l
 --
 -- For samples containing many values very close to the mean, this
 -- function is subject to inaccuracy due to catastrophic cancellation.
-centralMoment
+centralMomentOf
   :: (MonadThrow m)
   => Int       -- ^ Central moment to compute. Must be nonnegative
   -> Getting (Endo (Endo MeanKBN)) s Double
   -> s
   -> m Double
-{-# INLINE centralMoment #-}
-centralMoment a l xs
-  | a < 0     = modErr "centralMoment" "Negative central moment"
+{-# INLINE centralMomentOf #-}
+centralMomentOf a l xs
+  | a < 0     = modErr "centralMomentOf" "Negative central moment"
   | a == 0    = return 1
   | a == 1    = return 0
   | otherwise = do m <- meanOf l xs
                    let cmoment x = (x - m) ^ a
                    meanOf (l . to cmoment) xs
+
 
 -- | Compute the /k/th and /j/th central moments of a sample.
 --
