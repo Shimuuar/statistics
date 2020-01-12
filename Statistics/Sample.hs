@@ -345,6 +345,35 @@ stdDevMLOf l = liftM sqrt . varianceMLOf l
 -- {-# SPECIALIZE stdErrMean :: MonadThrow m => U.Vector Double -> m Double #-}
 -- {-# SPECIALIZE stdErrMean :: MonadThrow m => S.Vector Double -> m Double #-}
 
+
+data SampleMean = SampleMean !Int !Double
+
+instance CalcCount SampleMean where
+  calcCount (SampleMean n _) = n
+
+instance CalcMean SampleMean where
+  calcMean  (SampleMean _ m) = Just m
+instance HasMean SampleMean where
+  getMean   (SampleMean _ m) = m
+
+data SampleVariance = SampleVariance !Int !Double !Double
+
+instance CalcCount SampleVariance where
+  calcCount (SampleVariance n _ _) = n
+
+instance CalcMean SampleVariance where
+  calcMean  (SampleVariance _ m _) = Just m
+instance HasMean SampleVariance where
+  getMean   (SampleVariance _ m _) = m
+
+instance CalcVariance SampleVariance where
+  calcVariance   (SampleVariance n _ s) = Just $! s / fromIntegral n
+  calcVarianceML (SampleVariance n _ s) = Just $! s / fromIntegral (n - 1)
+instance HasVariance SampleVariance where
+  getVariance   (SampleVariance n _ s) = s / fromIntegral n
+  getVarianceML (SampleVariance n _ s) = s / fromIntegral (n - 1)
+
+
 -- -- data SampleVariance = SampleVariance
 -- --   { sampleSize  :: !Int
 -- --   , sampleMean  :: !Double
