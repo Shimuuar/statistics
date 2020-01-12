@@ -131,9 +131,12 @@ errMsg _ sd = "Statistics.Distribution.Normal.normalDistr: standard deviation mu
 --   variance is zero (all elements are equal)
 instance D.FromSample NormalDistribution Double where
   fromSample xs = do
-    m <- S.mean xs
-    v <- S.variance xs
-    normalDistr m (sqrt v)
+    undefined
+    -- FIXME: ZXC
+    --
+    -- m <- S.mean xs
+    -- v <- S.variance xs
+    -- normalDistr m (sqrt v)
 
 logDensity :: NormalDistribution -> Double -> Double
 logDensity d x = (-xm * xm / (2 * sd * sd)) - ndPdfDenom d
