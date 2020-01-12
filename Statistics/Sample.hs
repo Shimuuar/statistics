@@ -188,7 +188,6 @@ centralMomentOf a l xs
                    let cmoment x = (x - m) ^ a
                    meanOf (l . to cmoment) xs
 
-
 -- | Compute the /k/th and /j/th central moments of a sample.
 --
 -- This function performs two passes over the sample, so is not subject
@@ -196,25 +195,27 @@ centralMomentOf a l xs
 --
 -- For samples containing many values very close to the mean, this
 -- function is subject to inaccuracy due to catastrophic cancellation.
+centralMomentsOf
+  :: (MonadThrow m)
+  => Int       -- ^ Central moment to compute. Must be nonnegative
+  -> Int       -- ^ Another central moments
+  -> (forall r. Getting (Endo (Endo r)) s Double)
+  -> s
+  -> m (Double,Double)
+{-# INLINE centralMomentsOf #-}
+centralMomentsOf a b l xs
+  | a < 2 || b < 2 = do !cA <- centralMomentOf a l xs
+                        !cB <- centralMomentOf b l xs
+                        return (cA,cB)
+  | otherwise      = do est <- meanEstOf l xs
+                        let n = fromIntegral $ calcCount est
+                            m = getMean est
+                            step (V i j) x = V (Sum.add i (d^a)) (Sum.add j (d^b))
+                              where d = x - m
+                            fini (V i j) = (Sum.kbn i / n , Sum.kbn j / n)
+                        return $! fini $ foldlOf' l step (V mempty mempty) xs
 
--- centralMoments :: (G.Vector v Double, MonadThrow m) => Int -> Int -> v Double -> m (Double, Double)
--- centralMoments a b xs
---   | a < 2 || b < 2 = do !cA <- centralMoment a xs
---                         !cB <- centralMoment b xs
---                         return (cA,cB)
---   | otherwise      = do m <- mean xs
---                         let step (V i j) x = V (i + d^a) (j + d^b)
---                               where d = x - m
---                             fini (V i j) = (i / n , j / n)
---                         return $! fini $ G.foldl' step (V 0 0) xs
---   where
---     n = fromIntegral (G.length xs)
--- {-# SPECIALIZE centralMoments
---       :: MonadThrow m => Int -> Int -> V.Vector Double -> m (Double, Double) #-}
--- {-# SPECIALIZE centralMoments
---       :: MonadThrow m => Int -> Int -> U.Vector Double -> m (Double, Double) #-}
--- {-# SPECIALIZE centralMoments
---       :: MonadThrow m => Int -> Int -> S.Vector Double -> m (Double, Double) #-}
+data V = V {-# UNPACK #-} !Sum.KBNSum {-# UNPACK #-} !Sum.KBNSum
 
 
 
@@ -283,8 +284,6 @@ centralMomentOf a l xs
 --
 -- Because of the need for two passes, these functions are /not/
 -- subject to stream fusion.
-
--- data V = V {-# UNPACK #-} !Double {-# UNPACK #-} !Double
 
 -- | Unbiased estimate of a sample's variance. Also known as the
 --   sample variance
