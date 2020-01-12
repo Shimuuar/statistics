@@ -27,8 +27,7 @@ module Statistics.Sample (
   , harmonicMeanOf
   , geometricMeanOf
     -- * Statistics of dispersion
-    -- $variance
-    -- -- ** Two-pass functions (numerically robust)
+    -- ** Two-pass functions (numerically robust)
     -- $robust
   , varianceOf
   , varianceMLOf
@@ -95,7 +94,7 @@ instance HasVariance SampleVariance where
 
 
 ----------------------------------------------------------------
--- Estimators
+-- Descriptive stats
 ----------------------------------------------------------------
 
 -- | /O(n)/ Numerically stable sum. It uses KBN algorithm for
@@ -135,14 +134,10 @@ rangeOf l xs = do
   (x1,x2) <- minMaxOf l xs
   return $! x2 - x1
 
--- | /O(n)/ Arithmetic mean.  This uses Kahan-Babuška-Neumaier
---   summation.
-meanOf :: (Real a, MonadThrow m)
-       => Getting (Endo (Endo MeanKBN)) s a -> s -> m Double
-{-# INLINE meanOf #-}
-meanOf l xs
-  = liftErr "meanOf" "Empty sample"
-  $ calcMean $ asMeanKBN $ reduceSampleOf l xs
+
+----------------------------------------------------------------
+-- Locations statistics
+----------------------------------------------------------------
 
 -- | /O(n)/ Arithmetic mean.  This uses Kahan-Babuška-Neumaier
 --   summation.
@@ -153,6 +148,15 @@ meanEstOf l xs
   = liftErr "meanEstOf" "Empty sample"
   $ do let acc = asMeanKBN $ reduceSampleOf l xs
        SampleMean (calcCount acc) <$> calcMean acc
+
+-- | /O(n)/ Arithmetic mean.  This uses Kahan-Babuška-Neumaier
+--   summation.
+meanOf :: (Real a, MonadThrow m)
+       => Getting (Endo (Endo MeanKBN)) s a -> s -> m Double
+{-# INLINE meanOf #-}
+meanOf l xs
+  = liftErr "meanOf" "Empty sample"
+  $ calcMean $ asMeanKBN $ reduceSampleOf l xs
 
 -- | /O(n)/ Arithmetic mean for weighted sample. It uses a single-pass
 --   algorithm analogous to the one used by 'welfordMean'.
@@ -185,6 +189,12 @@ geometricMeanOf l
   = liftErr "geometricMeanOf" "Empty sample"
   . fmap exp
   . meanOf (l . to log)
+
+
+
+----------------------------------------------------------------
+-- Central moments
+----------------------------------------------------------------
 
 -- | Compute the /k/th central moment of a sample.  The central moment
 -- is also known as the moment about the mean.
@@ -295,19 +305,16 @@ kurtosisOf l xs = do
   (c4 , c2) <- centralMomentsOf 4 2 l xs
   return $! c4 / (c2 * c2) - 3
 
--- $variance
---
--- The variance&#8212;and hence the standard deviation&#8212;of a
--- sample of fewer than two elements are both defined to be zero.
+
+----------------------------------------------------------------
+-- Variance & friends
+----------------------------------------------------------------
 
 -- $robust
 --
 -- These functions use the compensated summation algorithm of Chan et
 -- al. for numerical robustness, but require two passes over the
 -- sample data as a result.
---
--- Because of the need for two passes, these functions are /not/
--- subject to stream fusion.
 
 
 varianceEstOf
@@ -392,6 +399,10 @@ stdErrMeanOf l xs = do
 -- -- {-# SPECIALIZE varianceWeighted :: V.Vector (Double,Double) -> Double #-}
 
 
+----------------------------------------------------------------
+-- Variance & friends
+----------------------------------------------------------------
+
 -- | Covariance of sample of pairs. 
 covarianceOf
   :: (MonadThrow m)
@@ -450,8 +461,11 @@ covarianceSumOf
 covarianceSumOf l muX muY
   = stableSumOf (l . to (\(x,y) -> (x-muX)*(y-muY)))
 
--- ------------------------------------------------------------------------
--- -- Helper code. Monomorphic unpacked accumulators.
+
+
+----------------------------------------------------------------
+-- Helpers
+----------------------------------------------------------------
 
 -- (^) operator from Prelude is just slow.
 (^) :: Double -> Int -> Double
