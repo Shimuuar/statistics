@@ -14,68 +14,88 @@
 -- Commonly used sample statistics, also known as descriptive
 -- statistics.
 
-module Statistics.Sample
-  where
-    -- (
-    -- -- * Types
-    --   Sample
-    -- , WeightedSample
-    -- -- * Descriptive functions
-    -- , stableSumOf
-    -- , reduceSampleOf
-    -- , minMaxOf
-    -- , rangeOf
-
-    -- -- * Statistics of location
-    -- , mean
-    -- , meanWeighted
-    -- , harmonicMean
-    -- , geometricMean
-
-    -- -- * Statistics of dispersion
-    -- -- $variance
-
+module Statistics.Sample (
+  -- * Descriptive functions
+    stableSumOf
+  , reduceSampleOf
+  , minMaxOf
+  , rangeOf
+    -- * Statistics of location
+  , meanOf
+  , meanEstOf
+  , weightedMeanOf
+  , harmonicMeanOf
+  , geometricMeanOf
+    -- * Statistics of dispersion
+    -- $variance
     -- -- ** Two-pass functions (numerically robust)
-    -- -- $robust
-    -- , variance
-    -- , varianceML
-    -- , stdDev
-    -- , stdDevML
-    -- , stdErrMean
-
-    -- -- ** Functions over central moments
-    -- , centralMoment
-    -- , centralMoments
-    -- , skewness
-    -- , kurtosis
-
-    -- -- * Joint distirbutions
-    -- , covariance
-    -- , correlation
-    -- , pair
-    -- -- * References
-    -- -- $references
-    -- ) where
+    -- $robust
+  , varianceOf
+  , varianceMLOf
+  , stdDevOf
+  , stdDevMLOf
+  , stdErrMeanOf
+    -- ** Functions over central moments
+  , centralMomentOf
+  , centralMomentsOf
+  , skewnessOf
+  , kurtosisOf
+    -- * Covariance
+  , covarianceOf
+  , correlationOf
+    -- * References
+    -- $references
+  ) where
 
 import Control.Applicative
-import Control.Category    ((>>>))
 import Control.Lens
 import Control.Monad       (liftM)
 import Control.Monad.Catch (MonadThrow(..))
-import Statistics.Function (minMax,square)
-import Statistics.Sample.Internal (robustSumVar, sum)
-import Statistics.Types.Internal  (Sample,WeightedSample,StatisticsException(..))
+import Statistics.Function (square)
+import Statistics.Types.Internal  (StatisticsException(..))
 import Statistics.Monoid.Class
 import Statistics.Monoid.Numeric
 import Data.Monoid         (Endo(..))
-import qualified Data.Vector          as V
-import qualified Data.Vector.Generic  as G
-import qualified Data.Vector.Unboxed  as U
-import qualified Data.Vector.Storable as S
 import qualified Numeric.Sum as Sum
--- Operator ^ will be overridden
-import Prelude hiding ((^), sum)
+import Prelude hiding ((^), sum) -- Operator ^ will be overridden
 
+----------------------------------------------------------------
+-- Data types
+----------------------------------------------------------------
+
+
+data SampleMean = SampleMean !Int !Double
+
+instance CalcCount SampleMean where
+  calcCount (SampleMean n _) = n
+
+instance CalcMean SampleMean where
+  calcMean  (SampleMean _ m) = Just m
+instance HasMean SampleMean where
+  getMean   (SampleMean _ m) = m
+
+data SampleVariance = SampleVariance !Int !Double !Double
+
+instance CalcCount SampleVariance where
+  calcCount (SampleVariance n _ _) = n
+
+instance CalcMean SampleVariance where
+  calcMean  (SampleVariance _ m _) = Just m
+instance HasMean SampleVariance where
+  getMean   (SampleVariance _ m _) = m
+
+instance CalcVariance SampleVariance where
+  calcVariance   (SampleVariance n _ s) = Just $! s / fromIntegral n
+  calcVarianceML (SampleVariance n _ s) = Just $! s / fromIntegral (n - 1)
+instance HasVariance SampleVariance where
+  getVariance   (SampleVariance n _ s) = s / fromIntegral n
+  getVarianceML (SampleVariance n _ s) = s / fromIntegral (n - 1)
+
+
+
+----------------------------------------------------------------
+-- Estimators
+----------------------------------------------------------------
 
 -- | /O(n)/ Numerically stable sum. It uses KBN algorithm for
 --   compensated summation.
@@ -359,57 +379,6 @@ stdErrMeanOf l xs = do
   est <- meanEstOf l xs
   return $! getMean est / (sqrt . fromIntegral . calcCount) est
 
-
-data SampleMean = SampleMean !Int !Double
-
-instance CalcCount SampleMean where
-  calcCount (SampleMean n _) = n
-
-instance CalcMean SampleMean where
-  calcMean  (SampleMean _ m) = Just m
-instance HasMean SampleMean where
-  getMean   (SampleMean _ m) = m
-
-data SampleVariance = SampleVariance !Int !Double !Double
-
-instance CalcCount SampleVariance where
-  calcCount (SampleVariance n _ _) = n
-
-instance CalcMean SampleVariance where
-  calcMean  (SampleVariance _ m _) = Just m
-instance HasMean SampleVariance where
-  getMean   (SampleVariance _ m _) = m
-
-instance CalcVariance SampleVariance where
-  calcVariance   (SampleVariance n _ s) = Just $! s / fromIntegral n
-  calcVarianceML (SampleVariance n _ s) = Just $! s / fromIntegral (n - 1)
-instance HasVariance SampleVariance where
-  getVariance   (SampleVariance n _ s) = s / fromIntegral n
-  getVarianceML (SampleVariance n _ s) = s / fromIntegral (n - 1)
-
-
-
--- -- -- | Standard deviation.  This is simply the square root of the
--- -- -- unbiased estimate of the variance.
--- -- stdDev :: (G.Vector v Double) => v Double -> Double
--- -- stdDev = sqrt . varianceUnbiased
--- -- {-# SPECIALIZE stdDev :: U.Vector Double -> Double #-}
--- -- {-# SPECIALIZE stdDev :: V.Vector Double -> Double #-}
-
--- -- -- | Standard error of the mean. This is the standard deviation
--- -- -- divided by the square root of the sample size.
--- -- stdErrMean :: (G.Vector v Double) => v Double -> Double
--- -- stdErrMean samp = stdDev samp / (sqrt . fromIntegral . G.length) samp
--- -- {-# SPECIALIZE stdErrMean :: U.Vector Double -> Double #-}
--- -- {-# SPECIALIZE stdErrMean :: V.Vector Double -> Double #-}
-
--- -- robustSumVarWeighted :: (G.Vector v (Double,Double)) => v (Double,Double) -> V
--- -- robustSumVarWeighted samp = G.foldl' go (V 0 0) samp
--- --     where
--- --       go (V s w) (x,xw) = V (s + xw*d*d) (w + xw)
--- --           where d = x - m
--- --       m = meanWeighted samp
--- -- {-# INLINE robustSumVarWeighted #-}
 
 -- -- -- | Weighted variance. This is biased estimation.
 -- -- varianceWeighted :: (G.Vector v (Double,Double)) => v (Double,Double) -> Double
