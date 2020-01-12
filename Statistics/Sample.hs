@@ -288,6 +288,20 @@ kurtosisOf l xs = do
 -- Because of the need for two passes, these functions are /not/
 -- subject to stream fusion.
 
+
+varianceEstOf
+  :: (MonadThrow m)
+  => (forall r. Getting (Endo (Endo r)) s Double) -> s -> m SampleVariance
+{-# INLINE varianceEstOf #-}
+varianceEstOf l xs
+  | Just est <- meanEstOf l xs
+  , calcCount est > 1
+    = let m = getMean est
+          s = stableSumOf (l . to (subtract m >> square)) xs
+      in return $! SampleVariance (calcCount est) m s
+  | otherwise
+    = modErr "varianceEstOf" "Insufficient sample size"
+
 -- | Unbiased estimate of a sample's variance. Also known as the
 --   sample variance
 --
@@ -296,16 +310,9 @@ varianceOf
   :: (MonadThrow m)
   => (forall r. Getting (Endo (Endo r)) s Double) -> s -> m Double
 {-# INLINE varianceOf #-}
-varianceOf l xs
-  | n > 2
-  , Just m <- calcMean accMean
-    = return $! stableSumOf (l . to (subtract m >>> square)) xs
-              / fromIntegral (n - 1)
-  | otherwise = modErr "varianceOf" "Insufficient sample size"
-  where
-    accMean = asMeanKBN $ reduceSampleOf l xs
-    n       = calcCount accMean
-
+varianceOf l
+  = liftM getVariance
+  . varianceEstOf l
 
 -- | Maximum likelihood estimate of a sample's variance. Also known
 --   as the population variance:
@@ -315,15 +322,9 @@ varianceMLOf
   :: (MonadThrow m)
   => (forall r. Getting (Endo (Endo r)) s Double) -> s -> m Double
 {-# INLINE varianceMLOf #-}
-varianceMLOf l xs
-  | n > 1
-  , Just m <- calcMean accMean
-    = return $! stableSumOf (l . to (subtract m >>> square)) xs
-              / fromIntegral n
-  | otherwise = modErr "varianceOf" "Insufficient sample size"
-  where
-    accMean = asMeanKBN $ reduceSampleOf l xs
-    n       = calcCount accMean
+varianceMLOf l
+  = liftM getVarianceML
+  . varianceEstOf l
 
 -- | Standard deviation. This is simply the square root of the
 --   unbiased estimate of the variance. Note that this estimate is not
