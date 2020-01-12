@@ -218,58 +218,61 @@ centralMomentsOf a b l xs
 data V = V {-# UNPACK #-} !Sum.KBNSum {-# UNPACK #-} !Sum.KBNSum
 
 
+-- | Compute the skewness of a sample. This is a measure of the
+-- asymmetry of its distribution.
+--
+-- A sample with negative skew is said to be /left-skewed/.  Most of
+-- its mass is on the right of the distribution, with the tail on the
+-- left.
+--
+-- > skewness $ U.to [1,100,101,102,103]
+-- > ==> -1.497681449918257
+--
+-- A sample with positive skew is said to be /right-skewed/.
+--
+-- > skewness $ U.to [1,2,3,4,100]
+-- > ==> 1.4975367033335198
+--
+-- A sample's skewness is not defined if its 'variance' is zero.
+--
+-- This function performs two passes over the sample, so is not subject
+-- to stream fusion.
+--
+-- For samples containing many values very close to the mean, this
+-- function is subject to inaccuracy due to catastrophic cancellation.
+skewnessOf
+  :: (MonadThrow m)
+  => (forall r. Getting (Endo (Endo r)) s Double)
+  -> s
+  -> m Double
+{-# INLINE skewnessOf #-}
+skewnessOf l xs = do
+  (c3 , c2) <- centralMomentsOf 3 2 l xs
+  return $! c3 * c2 ** (-1.5)
 
--- -- | Compute the skewness of a sample. This is a measure of the
--- -- asymmetry of its distribution.
--- --
--- -- A sample with negative skew is said to be /left-skewed/.  Most of
--- -- its mass is on the right of the distribution, with the tail on the
--- -- left.
--- --
--- -- > skewness $ U.to [1,100,101,102,103]
--- -- > ==> -1.497681449918257
--- --
--- -- A sample with positive skew is said to be /right-skewed/.
--- --
--- -- > skewness $ U.to [1,2,3,4,100]
--- -- > ==> 1.4975367033335198
--- --
--- -- A sample's skewness is not defined if its 'variance' is zero.
--- --
--- -- This function performs two passes over the sample, so is not subject
--- -- to stream fusion.
--- --
--- -- For samples containing many values very close to the mean, this
--- -- function is subject to inaccuracy due to catastrophic cancellation.
--- skewness :: (G.Vector v Double, MonadThrow m) => v Double -> m Double
--- skewness xs = do
---   (c3 , c2) <- centralMoments 3 2 xs
---   return $! c3 * c2 ** (-1.5)
--- {-# SPECIALIZE skewness :: MonadThrow m => V.Vector Double -> m Double #-}
--- {-# SPECIALIZE skewness :: MonadThrow m => U.Vector Double -> m Double #-}
--- {-# SPECIALIZE skewness :: MonadThrow m => S.Vector Double -> m Double #-}
 
-
--- -- | Compute the excess kurtosis of a sample.  This is a measure of
--- -- the \"peakedness\" of its distribution.  A high kurtosis indicates
--- -- that more of the sample's variance is due to infrequent severe
--- -- deviations, rather than more frequent modest deviations.
--- --
--- -- A sample's excess kurtosis is not defined if its 'variance' is
--- -- zero.
--- --
--- -- This function performs two passes over the sample, so is not subject
--- -- to stream fusion.
--- --
--- -- For samples containing many values very close to the mean, this
--- -- function is subject to inaccuracy due to catastrophic cancellation.
--- kurtosis :: (G.Vector v Double, MonadThrow m) => v Double -> m Double
--- kurtosis xs = do
---   (c4 , c2) <- centralMoments 4 2 xs
---   return $! c4 / (c2 * c2) - 3
--- {-# SPECIALIZE kurtosis :: MonadThrow m => V.Vector Double -> m Double #-}
--- {-# SPECIALIZE kurtosis :: MonadThrow m => U.Vector Double -> m Double #-}
--- {-# SPECIALIZE kurtosis :: MonadThrow m => S.Vector Double -> m Double #-}
+-- | Compute the excess kurtosis of a sample.  This is a measure of
+-- the \"peakedness\" of its distribution.  A high kurtosis indicates
+-- that more of the sample's variance is due to infrequent severe
+-- deviations, rather than more frequent modest deviations.
+--
+-- A sample's excess kurtosis is not defined if its 'variance' is
+-- zero.
+--
+-- This function performs two passes over the sample, so is not subject
+-- to stream fusion.
+--
+-- For samples containing many values very close to the mean, this
+-- function is subject to inaccuracy due to catastrophic cancellation.
+kurtosisOf
+  :: (MonadThrow m)
+  => (forall r. Getting (Endo (Endo r)) s Double)
+  -> s
+  -> m Double
+{-# INLINE kurtosisOf #-}
+kurtosisOf l xs = do
+  (c4 , c2) <- centralMomentsOf 4 2 l xs
+  return $! c4 / (c2 * c2) - 3
 
 -- $variance
 --
