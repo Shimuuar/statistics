@@ -34,17 +34,26 @@ module Statistics.Function
     -- * Combinators
     , for
     , rfor
+    -- *
+    , toVectorOf
     ) where
 
 #include "MachDeps.h"
 
 import Control.Monad.ST (ST)
-import Data.Bits ((.|.), shiftR)
+import Control.Lens     (Getting,toListOf)
+import Data.Bits        ((.|.), shiftR)
+import Data.Monoid      (Endo)
 import qualified Data.Vector.Algorithms.Intro as I
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Unboxed.Mutable as M
 import Numeric.MathFunctions.Comparison (within)
+
+
+toVectorOf :: G.Vector v a => Getting (Endo [a]) s a -> s -> v a
+toVectorOf l = G.fromList . toListOf l
+{-# INLINE toVectorOf #-}
 
 -- | Sort a vector.
 sort :: U.Vector Double -> U.Vector Double
