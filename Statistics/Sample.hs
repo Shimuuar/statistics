@@ -378,14 +378,13 @@ stdDevMLOf l = liftM sqrt . varianceMLOf l
 
 -- | Standard error of the mean. This is the standard deviation
 --   divided by the square root of the sample size.
--- stdErrMeanOf :: (MonadThrow m) => v Double -> m Double
 stdErrMeanOf
-  :: (Real a, MonadThrow m)
-  => Getting (Endo (Endo MeanKBN)) s a -> s -> m Double
+  :: (MonadThrow m)
+  => (forall r. Getting (Endo (Endo r)) s Double) -> s -> m Double
 {-# INLINE stdErrMeanOf #-}
 stdErrMeanOf l xs = do
-  est <- meanEstOf l xs
-  return $! getMean est / (sqrt . fromIntegral . calcCount) est
+  est <- varianceEstOf l xs
+  return $! sqrt $ getVariance est / (fromIntegral . calcCount) est
 
 
 -- -- -- | Weighted variance. This is biased estimation.
