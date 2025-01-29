@@ -11,7 +11,7 @@ import qualified Data.Vector.Generic         as G
 import qualified Data.Vector.Unboxed         as U
 import qualified Data.Vector.Generic.Mutable as M
 import Statistics.Function
-
+import Statistics.Vector
 
 -- Private data type for unfolding
 data Rank v a = Rank {
@@ -57,11 +57,7 @@ rank eq vec = G.unfoldr go (Rank 0 (-1) 1 vec)
 
 -- | Compute rank of every element of vector. Unlike rank it doesn't
 --   require sample to be sorted.
-rankUnsorted :: ( Ord a
-                , G.Vector v a
-                , G.Vector v Int
-                , G.Vector v (Int, a)
-                )
+rankUnsorted :: ( Ord a, G.Vector v a)
              => v a
              -> U.Vector Double
 rankUnsorted xs = G.create $ do
@@ -76,10 +72,9 @@ rankUnsorted xs = G.create $ do
     -- Calculate ranks for sorted array
     ranks = rank (==) sorted
     -- Sort vector and retain original indices of elements
-    (index, sorted)
-      = G.unzip
-      $ sortBy (comparing snd)
-      $ indexed xs
+    UnzipPair index sorted
+      = sortBy (comparing snd)
+      $ UnzipPair (U.enumFromTo 0 (G.length xs - 1)) xs
 {-# INLINE rankUnsorted #-}
 
 

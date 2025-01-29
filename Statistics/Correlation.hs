@@ -58,9 +58,6 @@ spearman :: ( Ord a
             , G.Vector v a
             , G.Vector v b
             , G.Vector v (a, b)
-            , G.Vector v Int
-            , G.Vector v (Int, a)
-            , G.Vector v (Int, b)
             )
          => v (a, b)
          -> Double
@@ -77,9 +74,6 @@ spearman2 :: ( Ord a
             , Ord b
             , G.Vector v a
             , G.Vector v b
-            , G.Vector v Int
-            , G.Vector v (Int, a)
-            , G.Vector v (Int, b)
             )
          => v a
          -> v b

@@ -123,6 +123,7 @@ library
   other-modules:
     Statistics.Distribution.Poisson.Internal
     Statistics.Internal
+    Statistics.Vector
     Statistics.Test.Internal
     Statistics.Types.Internal
   build-depends: base                    >= 4.9 && < 5
